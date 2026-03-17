@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园通勤车系统</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <section class="view view-active" id="login-view" aria-label="登录页面">
+            <div class="login-layout">
+                <div class="hero-panel surface">
+                    <h1>校园通勤车系统</h1>
+                    <p class="hero-copy">
+                        面向高校教师通勤场景的智能调度平台，围绕带硬时间窗的车辆路径问题进行调度求解、
+                        路径展示与运行管理。
+                    </p>
+                    <div class="hero-metrics">
+                        <article class="metric-card">
+                            <span class="metric-value">6</span>
+                            <span class="metric-label">通勤站点</span>
+                        </article>
+                        <article class="metric-card">
+                            <span class="metric-value">2</span>
+                            <span class="metric-label">调度车辆</span>
+                        </article>
+                        <article class="metric-card">
+                            <span class="metric-value">07:50</span>
+                            <span class="metric-label">最晚到校</span>
+                        </article>
+                    </div>
+                </div>
+
+                <div class="login-panel surface">
+                    <div class="panel-header">
+                        <span class="badge">登录入口</span>
+                        <h2>进入系统</h2>
+                        <p>根据角色进入管理员界面或教师用户界面。</p>
+                    </div>
+
+                    <form id="login-form" class="login-form">
+                        <label class="field">
+                            <span>用户名</span>
+                            <input id="username" name="username" type="text" placeholder="请输入用户名" required>
+                        </label>
+
+                        <label class="field">
+                            <span>密码</span>
+                            <input id="password" name="password" type="password" placeholder="请输入密码" required>
+                        </label>
+
+                        <div class="role-picker">
+                            <span>角色</span>
+                            <div class="segmented-control">
+                                <label class="segment">
+                                    <input type="radio" name="role" value="admin" checked>
+                                    <span>管理员</span>
+                                </label>
+                                <label class="segment">
+                                    <input type="radio" name="role" value="user">
+                                    <span>用户</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button class="primary-button" type="submit">登录系统</button>
+                    </form>
+
+                    <div class="quick-tip">
+                        <strong>演示账号：</strong>
+                        <span>管理员 `admin` / 用户 `teacher`，密码任意。</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="view dashboard-view" id="admin-view" aria-label="管理员界面">
+            <div class="dashboard-shell">
+                <aside class="sidebar surface admin-accent">
+                    <div>
+                        <div class="brand-block">
+                            <h2>管理员端</h2>
+                            <p>车辆调度与数据管理</p>
+                        </div>
+
+                        <nav class="nav-list">
+                            <button class="nav-item nav-item-active" type="button" data-admin-tab="overview">系统概览</button>
+                            <button class="nav-item" type="button" data-admin-tab="vehicles">车辆管理</button>
+                            <button class="nav-item" type="button" data-admin-tab="stations">站点管理</button>
+                            <button class="nav-item" type="button" data-admin-tab="schedule">调度结果</button>
+                            <button class="nav-item" type="button" data-admin-tab="users">用户管理</button>
+                        </nav>
+                    </div>
+
+                    <button class="ghost-button" type="button" data-action="logout">退出登录</button>
+                </aside>
+
+                <main class="dashboard-main">
+                    <header class="topbar surface">
+                        <div>
+                            <h1>调度总览</h1>
+                            <p class="page-subtitle">查看并维护车辆、站点和调度结果。</p>
+                        </div>
+                    </header>
+
+                    <section class="admin-tab admin-tab-active" id="admin-overview">
+                        <div class="grid-cards">
+                            <article class="stat-card surface">
+                                <span class="stat-label">今日车辆</span>
+                                <strong>2</strong>
+                                <p>全部车辆已完成可行调度</p>
+                            </article>
+                            <article class="stat-card surface">
+                                <span class="stat-label">服务站点</span>
+                                <strong>6</strong>
+                                <p>覆盖主要教师通勤上车点</p>
+                            </article>
+                            <article class="stat-card surface">
+                                <span class="stat-label">最优总距离</span>
+                                <strong>11.6 km</strong>
+                                <p>ACO 调度结果已写回数据库</p>
+                            </article>
+                            <article class="stat-card surface">
+                                <span class="stat-label">准时率</span>
+                                <strong>100%</strong>
+                                <p>全部车辆在 07:50 前到校</p>
+                            </article>
+                        </div>
+
+                        <div class="content-grid">
+                            <article class="content-card surface">
+                                <div class="card-heading">
+                                    <div>
+                                        <span class="badge">系统摘要</span>
+                                        <h3>今日调度方案</h3>
+                                    </div>
+                                </div>
+                                <ul class="summary-list">
+                                    <li>车辆 `BUS-01` 负责南长安街壹号、智慧新城方向通勤任务。</li>
+                                    <li>车辆 `BUS-02` 负责金地常宁府、任家寨、杜永村方向通勤任务。</li>
+                                    <li>所有车辆终点站均为西安财经大学长安校区东大门。</li>
+                                </ul>
+                            </article>
+
+                            <article class="content-card surface">
+                                <div class="card-heading">
+                                    <div>
+                                        <span class="badge">关键约束</span>
+                                        <h3>运行规则</h3>
+                                    </div>
+                                </div>
+                                <ul class="summary-list compact">
+                                    <li>终点站硬时间窗：07:30 - 07:50</li>
+                                    <li>所有车辆必须在 07:50 前到达学校</li>
+                                    <li>车辆容量与站点需求同步约束</li>
+                                </ul>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section class="admin-tab" id="admin-vehicles">
+                        <div class="table-card surface">
+                            <div class="card-heading">
+                                <div>
+                                    <span class="badge">车辆管理</span>
+                                    <h3>通勤车列表</h3>
+                                </div>
+                                <div class="toolbar">
+                                    <input class="search-input" id="vehicle-search" type="search" placeholder="搜索车辆编号或车牌">
+                                    <button class="secondary-button" type="button" data-crud-create="vehicles">新增车辆</button>
+                                </div>
+                            </div>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>车辆编号</th>
+                                        <th>车牌号</th>
+                                        <th>容量</th>
+                                        <th>司机</th>
+                                        <th>最大运行时长</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vehicle-table-body"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="admin-tab" id="admin-stations">
+                        <div class="table-card surface">
+                            <div class="card-heading">
+                                <div>
+                                    <span class="badge">站点管理</span>
+                                    <h3>通勤站点列表</h3>
+                                </div>
+                                <div class="toolbar">
+                                    <input class="search-input" id="station-search" type="search" placeholder="搜索站点名称">
+                                    <button class="secondary-button" type="button" data-crud-create="stations">新增站点</button>
+                                </div>
+                            </div>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>站点名称</th>
+                                        <th>需求人数</th>
+                                        <th>服务时长</th>
+                                        <th>时间窗</th>
+                                        <th>类型</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="station-table-body"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="admin-tab" id="admin-schedule">
+                        <div class="table-card surface">
+                            <div class="card-heading">
+                                <div>
+                                    <span class="badge">调度结果</span>
+                                    <h3>车辆路径结果表</h3>
+                                </div>
+                                <div class="toolbar">
+                                    <input class="search-input" id="schedule-search" type="search" placeholder="搜索车辆或站点">
+                                    <button class="secondary-button" type="button" data-crud-create="schedule">新增记录</button>
+                                    <button class="secondary-button" type="button" data-action="open-modal">查看写回摘要</button>
+                                </div>
+                            </div>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>vehicle_id</th>
+                                        <th>station_id</th>
+                                        <th>visit_order</th>
+                                        <th>arrival_time</th>
+                                        <th>departure_time</th>
+                                        <th>feasible_flag</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="schedule-table-body"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="admin-tab" id="admin-users">
+                        <div class="content-grid">
+                            <article class="content-card surface">
+                                <div class="card-heading">
+                                    <div>
+                                        <span class="badge">用户管理</span>
+                                        <h3>系统角色</h3>
+                                    </div>
+                                </div>
+                                <div class="role-cards">
+                                    <div class="mini-card">
+                                        <strong>管理员</strong>
+                                        <p>维护车辆、站点与调度结果。</p>
+                                    </div>
+                                    <div class="mini-card">
+                                        <strong>教师用户</strong>
+                                        <p>查看本人通勤路线与到站时间。</p>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <article class="content-card surface">
+                                <div class="card-heading">
+                                    <div>
+                                        <span class="badge">安全说明</span>
+                                        <h3>权限控制</h3>
+                                    </div>
+                                </div>
+                                <p class="body-copy">
+                                    管理员界面支持调度总览、数据维护与结果核查；普通用户界面仅提供查询与查看权限。
+                                </p>
+                            </article>
+                        </div>
+                    </section>
+                </main>
+            </div>
+        </section>
+
+        <section class="view dashboard-view" id="user-view" aria-label="用户界面">
+            <div class="dashboard-shell user-shell">
+                <aside class="sidebar surface user-accent">
+                    <div>
+                        <div class="brand-block">
+                            <h2>今日通勤</h2>
+                            <p>查看个人路线与到站信息</p>
+                        </div>
+
+                        <div class="route-preview">
+                            <p class="route-title">推荐乘车线路</p>
+                            <strong>南长安街壹号 → 智慧新城 → 学校东大门</strong>
+                        </div>
+                    </div>
+
+                    <button class="ghost-button" type="button" data-action="logout">退出登录</button>
+                </aside>
+
+                <main class="dashboard-main">
+                    <header class="topbar surface">
+                        <div>
+                            <h1>用户界面</h1>
+                            <p class="page-subtitle">查看个人通勤路线与到站时间。</p>
+                        </div>
+                        <div class="status-pill success-pill">
+                            <span class="status-dot"></span>
+                            当前方案可行
+                        </div>
+                    </header>
+
+                    <div class="grid-cards">
+                        <article class="stat-card surface user-stat">
+                            <span class="stat-label">上车站点</span>
+                            <strong>南长安街壹号</strong>
+                            <p>建议 07:03 前到达候车点</p>
+                        </article>
+                        <article class="stat-card surface user-stat">
+                            <span class="stat-label">预计到校</span>
+                            <strong>07:30</strong>
+                            <p>满足学校到达时间要求</p>
+                        </article>
+                        <article class="stat-card surface user-stat">
+                            <span class="stat-label">服务状态</span>
+                            <strong>正常</strong>
+                            <p>调度方案已生成并可查看</p>
+                        </article>
+                    </div>
+
+                    <div class="content-grid user-grid">
+                        <article class="content-card surface">
+                            <div class="card-heading">
+                                <div>
+                                    <span class="badge">我的通勤路线</span>
+                                    <h3>今日行程</h3>
+                                </div>
+                            </div>
+                            <ol class="timeline" id="user-route-timeline"></ol>
+                        </article>
+
+                        <article class="content-card surface">
+                            <div class="card-heading">
+                                <div>
+                                    <span class="badge">调度信息</span>
+                                    <h3>运行详情</h3>
+                                </div>
+                            </div>
+                            <div class="detail-panel" id="user-detail-panel"></div>
+                        </article>
+                    </div>
+                </main>
+            </div>
+        </section>
+    </div>
+
+    <div class="modal-backdrop" id="modal-backdrop" aria-hidden="true">
+        <div class="modal surface" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="modal-header">
+                <div>
+                    <span class="badge">写回结果</span>
+                    <h3 id="modal-title">数据库写回摘要</h3>
+                </div>
+                <button class="icon-button" type="button" data-action="close-modal" aria-label="关闭弹窗">×</button>
+            </div>
+            <div class="modal-content">
+                <p>本次蚁群算法调度结果已成功写回 `schedule` 表。</p>
+                <ul class="summary-list compact">
+                    <li>共写入 7 条调度记录</li>
+                    <li>全部记录 `feasible_flag = 1`</li>
+                    <li>可直接供后续 Web 接口与页面展示使用</li>
+                </ul>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-button" type="button" data-action="close-modal">知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="crud-modal-backdrop" aria-hidden="true">
+        <div class="modal surface form-modal" role="dialog" aria-modal="true" aria-labelledby="crud-modal-title">
+            <div class="modal-header">
+                <div>
+                    <span class="badge" id="crud-modal-badge">数据维护</span>
+                    <h3 id="crud-modal-title">新增数据</h3>
+                </div>
+                <button class="icon-button" type="button" data-action="close-crud-modal" aria-label="关闭弹窗">×</button>
+            </div>
+            <form id="crud-form" class="crud-form"></form>
+        </div>
+    </div>
+
+    <script src="./script.js"></script>
+</body>
+</html>
