@@ -50,6 +50,15 @@ const Station* findStationById(const VRPTWInstance& instance, int station_id) {
     return nullptr;
 }
 
+int stationIndexById(const VRPTWInstance& instance, int station_id) {
+    for (std::size_t i = 0; i < instance.stations.size(); ++i) {
+        if (instance.stations[i].id == station_id) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
 std::string toDateTimeString(const std::string& date, int minutes) {
     const int hours = minutes / 60;
     const int mins = minutes % 60;
@@ -102,8 +111,29 @@ int ResultWriter::writeScheduleResult(
                     continue;
                 }
 
+                // Persist the algorithm's real route timing directly. These values
+                // are produced from the distance_matrix travel_time plus service_time
+                // during VRPTW feasibility evaluation and route construction.
                 const int arrival_minutes = route.arrival_times_minutes[i];
-                const int departure_minutes = arrival_minutes + station->service_minutes;
+                int departure_minutes = arrival_minutes + station->service_minutes;
+
+                if (i + 1 < route.station_ids.size() && i + 1 < route.arrival_times_minutes.size()) {
+                    const int from_index = stationIndexById(instance, station_id);
+                    const int to_index = stationIndexById(instance, route.station_ids[i + 1]);
+                    if (from_index >= 0 && to_index >= 0) {
+                        const int travel_to_next =
+                            instance.travel_time_matrix_minutes[static_cast<std::size_t>(from_index)]
+                                                              [static_cast<std::size_t>(to_index)];
+                        const int latest_departure_for_next =
+                            route.arrival_times_minutes[i + 1] - travel_to_next;
+
+                        // If the route must wait to satisfy the next station's earliest
+                        // time window, reflect that wait in the current stop's displayed
+                        // departure time so the timetable matches the real road travel
+                        // time observed in distance_matrix.
+                        departure_minutes = std::max(departure_minutes, latest_departure_for_next);
+                    }
+                }
 
                 const std::string schedule_code = buildScheduleCode(schedule_date, route.vehicle_id, static_cast<int>(i + 1));
                 const std::string arrival_time = toDateTimeString(schedule_date, arrival_minutes);

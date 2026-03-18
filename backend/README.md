@@ -18,6 +18,9 @@
 - `result_writer.cpp`：将算法结果写回 `schedule` 表
 - `station_repository.h/.cpp`：站点 CRUD 数据访问层
 - `station_api_server.cpp`：浏览器访问的最小 HTTP API，提供 `stations` 增删改查
+- `schedule_repository.h/.cpp`：前端读取调度结果的数据访问层
+- `vehicle_repository.h/.cpp`：车辆 CRUD 数据访问层
+- `planning_service.h/.cpp`：基于最新站点和车辆生成真实矩阵并执行蚁群调度
 - `distance_matrix_repository.h/.cpp`：真实距离矩阵写库模块
 - `generate_distance_matrix.cpp`：根据数据库站点生成真实路网 `distance_matrix`
 
@@ -54,6 +57,12 @@ MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USER=root MYSQL_DATABASE=campus_shutt
 - `POST /api/stations`
 - `PUT /api/stations/{id}`
 - `DELETE /api/stations/{id}`
+- `GET /api/vehicles`
+- `POST /api/vehicles`
+- `PUT /api/vehicles/{id}`
+- `DELETE /api/vehicles/{id}`
+- `POST /api/plan`
+- `GET /api/schedule-results`
 
 前端地图页面会默认请求 `http://127.0.0.1:8080/api/stations`。如果 API 没启动，则继续使用前端内置数据。
 

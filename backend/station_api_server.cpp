@@ -4,17 +4,25 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <iostream>
+#include <map>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
+#include "schedule_repository.h"
 #include "station_repository.h"
+#include "vehicle_repository.h"
+#include "planning_service.h"
 
 namespace {
 
@@ -32,6 +40,16 @@ struct HttpRequest {
     std::string method;
     std::string path;
     std::string body;
+};
+
+struct RoutePoint {
+    double lng = 0.0;
+    double lat = 0.0;
+};
+
+struct ApiRoutePolyline {
+    int vehicle_id = 0;
+    std::vector<RoutePoint> polyline;
 };
 
 std::string jsonEscape(const std::string& input) {
@@ -77,6 +95,103 @@ std::string stationsToJson(const std::vector<ApiStation>& stations) {
         json << stationToJson(stations[i]);
     }
     json << "]}";
+    return json.str();
+}
+
+std::string scheduleStopsToJson(const std::vector<ApiScheduleStop>& stops) {
+    std::ostringstream json;
+    json << "{\"schedule_stops\":[";
+    for (std::size_t i = 0; i < stops.size(); ++i) {
+        if (i > 0) {
+            json << ",";
+        }
+        json << "{"
+             << "\"vehicle_id\":" << stops[i].vehicle_id << ","
+             << "\"vehicle_code\":\"" << jsonEscape(stops[i].vehicle_code) << "\","
+             << "\"plate_number\":\"" << jsonEscape(stops[i].plate_number) << "\","
+             << "\"station_id\":" << stops[i].station_id << ","
+             << "\"station_name\":\"" << jsonEscape(stops[i].station_name) << "\","
+             << "\"lng\":" << stops[i].lng << ","
+             << "\"lat\":" << stops[i].lat << ","
+             << "\"is_depot\":" << (stops[i].is_depot ? "true" : "false") << ","
+             << "\"visit_order\":" << stops[i].visit_order << ","
+             << "\"arrival_time\":\"" << jsonEscape(stops[i].arrival_time) << "\","
+             << "\"departure_time\":\"" << jsonEscape(stops[i].departure_time) << "\","
+             << "\"feasible_flag\":" << stops[i].feasible_flag
+             << "}";
+    }
+    json << "]}";
+    return json.str();
+}
+
+std::string routePolylinesToJson(const std::vector<ApiRoutePolyline>& routes) {
+    std::ostringstream json;
+    json << "{\"routes\":[";
+    for (std::size_t i = 0; i < routes.size(); ++i) {
+        if (i > 0) {
+            json << ",";
+        }
+        json << "{"
+             << "\"vehicle_id\":" << routes[i].vehicle_id << ","
+             << "\"polyline\":[";
+        for (std::size_t j = 0; j < routes[i].polyline.size(); ++j) {
+            if (j > 0) {
+                json << ",";
+            }
+            json << "{"
+                 << "\"lng\":" << routes[i].polyline[j].lng << ","
+                 << "\"lat\":" << routes[i].polyline[j].lat
+                 << "}";
+        }
+        json << "]}";
+    }
+    json << "]}";
+    return json.str();
+}
+
+std::string vehicleToJson(const ApiVehicle& vehicle) {
+    std::ostringstream json;
+    json << "{"
+         << "\"id\":" << vehicle.id << ","
+         << "\"vehicle_code\":\"" << jsonEscape(vehicle.vehicle_code) << "\","
+         << "\"plate_number\":\"" << jsonEscape(vehicle.plate_number) << "\","
+         << "\"capacity\":" << vehicle.capacity << ","
+         << "\"driver_name\":\"" << jsonEscape(vehicle.driver_name) << "\","
+         << "\"driver_phone\":\"" << jsonEscape(vehicle.driver_phone) << "\","
+         << "\"status\":\"" << jsonEscape(vehicle.status) << "\","
+         << "\"start_depot\":\"" << jsonEscape(vehicle.start_depot) << "\","
+         << "\"end_depot\":\"" << jsonEscape(vehicle.end_depot) << "\","
+         << "\"max_run_minutes\":" << vehicle.max_run_minutes << ","
+         << "\"earliest_departure_time\":\"" << jsonEscape(vehicle.earliest_departure_time) << "\""
+         << "}";
+    return json.str();
+}
+
+std::string vehiclesToJson(const std::vector<ApiVehicle>& vehicles) {
+    std::ostringstream json;
+    json << "{\"vehicles\":[";
+    for (std::size_t i = 0; i < vehicles.size(); ++i) {
+        if (i > 0) {
+            json << ",";
+        }
+        json << vehicleToJson(vehicles[i]);
+    }
+    json << "]}";
+    return json.str();
+}
+
+std::string planningSummaryToJson(const PlanningSummary& summary) {
+    std::ostringstream json;
+    json << "{"
+         << "\"success\":" << (summary.success ? "true" : "false") << ","
+        << "\"station_count\":" << summary.station_count << ","
+        << "\"vehicle_count\":" << summary.vehicle_count << ","
+        << "\"schedule_rows\":" << summary.schedule_rows << ","
+        << "\"objective_value\":" << summary.objective_value << ","
+        << "\"total_runtime_minutes\":" << summary.total_runtime_minutes << ","
+         << "\"feasible\":" << (summary.feasible ? "true" : "false") << ","
+         << "\"message\":\"" << jsonEscape(summary.message) << "\""
+         << "}";
     return json.str();
 }
 
@@ -130,6 +245,20 @@ ApiStation parseStationPayload(const std::string& body) {
     return station;
 }
 
+ApiVehicle parseVehiclePayload(const std::string& body) {
+    ApiVehicle vehicle;
+    vehicle.plate_number = extractJsonString(body, "plate_number");
+    vehicle.capacity = extractJsonInt(body, "capacity", 20);
+    vehicle.driver_name = extractJsonString(body, "driver_name");
+    vehicle.driver_phone = extractJsonString(body, "driver_phone");
+    vehicle.status = extractJsonString(body, "status", "idle");
+    vehicle.start_depot = extractJsonString(body, "start_depot");
+    vehicle.end_depot = extractJsonString(body, "end_depot");
+    vehicle.max_run_minutes = extractJsonInt(body, "max_run_minutes", 120);
+    vehicle.earliest_departure_time = extractJsonString(body, "earliest_departure_time", "06:40");
+    return vehicle;
+}
+
 std::string buildHttpResponse(
     int status_code,
     const std::string& status_text,
@@ -176,28 +305,221 @@ int parseStationIdFromPath(const std::string& path) {
     return std::stoi(match[1].str());
 }
 
-std::string handleRequest(const HttpRequest& request, StationRepository& repository) {
+int parseVehicleIdFromPath(const std::string& path) {
+    const std::regex pattern("^/api/vehicles/([0-9]+)$");
+    std::smatch match;
+    if (!std::regex_match(path, match, pattern)) {
+        return 0;
+    }
+    return std::stoi(match[1].str());
+}
+
+std::string runCommand(const std::string& command) {
+    std::string output;
+    FILE* pipe = popen(command.c_str(), "r");
+    if (pipe == nullptr) {
+        throw std::runtime_error("Failed to execute curl command.");
+    }
+
+    char buffer[4096];
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        output += buffer;
+    }
+
+    const int exit_code = pclose(pipe);
+    if (exit_code != 0) {
+        throw std::runtime_error("curl command failed with exit code " + std::to_string(exit_code));
+    }
+    return output;
+}
+
+std::vector<RoutePoint> parsePolylineSegments(const std::string& response) {
+    const std::regex polyline_pattern("\"polyline\"\\s*:\\s*\"([^\"]+)\"");
+    std::sregex_iterator begin(response.begin(), response.end(), polyline_pattern);
+    std::sregex_iterator end;
+    std::vector<RoutePoint> points;
+
+    for (auto it = begin; it != end; ++it) {
+        std::stringstream segment_stream((*it)[1].str());
+        std::string point_text;
+        while (std::getline(segment_stream, point_text, ';')) {
+            const std::size_t comma = point_text.find(',');
+            if (comma == std::string::npos) {
+                continue;
+            }
+            RoutePoint point;
+            point.lng = std::stod(point_text.substr(0, comma));
+            point.lat = std::stod(point_text.substr(comma + 1));
+            if (!points.empty()) {
+                const RoutePoint& last = points.back();
+                if (std::abs(last.lng - point.lng) < 1e-9 && std::abs(last.lat - point.lat) < 1e-9) {
+                    continue;
+                }
+            }
+            points.push_back(point);
+        }
+    }
+
+    return points;
+}
+
+std::vector<RoutePoint> requestDrivingPolyline(
+    const ApiStation& origin,
+    const ApiStation& destination,
+    const std::string& amap_web_service_key) {
+    std::ostringstream url;
+    url << "https://restapi.amap.com/v3/direction/driving"
+        << "?origin=" << origin.longitude << "," << origin.latitude
+        << "&destination=" << destination.longitude << "," << destination.latitude
+        << "&extensions=all"
+        << "&output=json"
+        << "&strategy=0"
+        << "&key=" << amap_web_service_key;
+
+    const std::string response = runCommand("/usr/bin/curl -sS \"" + url.str() + "\"");
+    if (response.find("\"status\":\"1\"") == std::string::npos &&
+        response.find("\"status\": \"1\"") == std::string::npos) {
+        throw std::runtime_error("AMap route polyline request failed: " + response);
+    }
+
+    return parsePolylineSegments(response);
+}
+
+std::vector<ApiRoutePolyline> buildRoutePolylines(
+    const std::vector<ApiScheduleStop>& schedule_stops,
+    const std::vector<ApiStation>& stations,
+    const std::string& amap_web_service_key) {
+    std::vector<ApiRoutePolyline> routes;
+    if (amap_web_service_key.empty()) {
+        return routes;
+    }
+
+    std::map<int, std::vector<int>> vehicle_station_ids;
+    for (const auto& stop : schedule_stops) {
+        vehicle_station_ids[stop.vehicle_id].push_back(stop.station_id);
+    }
+
+    auto findStation = [&](int station_id) -> const ApiStation* {
+        for (const auto& station : stations) {
+            if (station.id == station_id) {
+                return &station;
+            }
+        }
+        return nullptr;
+    };
+
+    for (const auto& item : vehicle_station_ids) {
+        if (item.second.size() < 2) {
+            continue;
+        }
+
+        ApiRoutePolyline route;
+        route.vehicle_id = item.first;
+
+        for (std::size_t i = 0; i + 1 < item.second.size(); ++i) {
+            const ApiStation* origin = findStation(item.second[i]);
+            const ApiStation* destination = findStation(item.second[i + 1]);
+            if (origin == nullptr || destination == nullptr) {
+                continue;
+            }
+
+            const std::vector<RoutePoint> segment_points =
+                requestDrivingPolyline(*origin, *destination, amap_web_service_key);
+
+            for (const auto& point : segment_points) {
+                if (!route.polyline.empty()) {
+                    const RoutePoint& last = route.polyline.back();
+                    if (std::abs(last.lng - point.lng) < 1e-9 &&
+                        std::abs(last.lat - point.lat) < 1e-9) {
+                        continue;
+                    }
+                }
+                route.polyline.push_back(point);
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(180));
+        }
+
+        routes.push_back(route);
+    }
+
+    return routes;
+}
+
+std::string handleRequest(
+    const HttpRequest& request,
+    StationRepository& station_repository,
+    ScheduleRepository& schedule_repository,
+    VehicleRepository& vehicle_repository,
+    const std::string& amap_web_service_key) {
     if (request.method == "OPTIONS") {
         return buildHttpResponse(204, "No Content", "");
     }
 
     if (request.method == "GET" && request.path == "/api/stations") {
-        return buildHttpResponse(200, "OK", stationsToJson(repository.listStations()));
+        return buildHttpResponse(200, "OK", stationsToJson(station_repository.listStations()));
+    }
+
+    if (request.method == "GET" && request.path == "/api/schedule-results") {
+        return buildHttpResponse(200, "OK", scheduleStopsToJson(schedule_repository.listScheduleStops()));
+    }
+
+    if (request.method == "GET" && request.path == "/api/route-polylines") {
+        const std::vector<ApiScheduleStop> schedule_stops = schedule_repository.listScheduleStops();
+        const std::vector<ApiStation> stations = station_repository.listStations();
+        return buildHttpResponse(
+            200,
+            "OK",
+            routePolylinesToJson(buildRoutePolylines(schedule_stops, stations, amap_web_service_key)));
     }
 
     if (request.method == "POST" && request.path == "/api/stations") {
-        const ApiStation created = repository.createStation(parseStationPayload(request.body));
+        const ApiStation created = station_repository.createStation(parseStationPayload(request.body));
         return buildHttpResponse(201, "Created", stationToJson(created));
+    }
+
+    if (request.method == "GET" && request.path == "/api/vehicles") {
+        return buildHttpResponse(200, "OK", vehiclesToJson(vehicle_repository.listVehicles()));
+    }
+
+    if (request.method == "POST" && request.path == "/api/vehicles") {
+        const ApiVehicle created = vehicle_repository.createVehicle(parseVehiclePayload(request.body));
+        return buildHttpResponse(201, "Created", vehicleToJson(created));
+    }
+
+    if (request.method == "POST" && request.path == "/api/plan") {
+        PlanningService planning_service(
+            MySqlConfig {
+                readEnvOrDefault("MYSQL_HOST", "127.0.0.1"),
+                readPortOrDefault("MYSQL_PORT", 3306),
+                readEnvOrDefault("MYSQL_USER", "root"),
+                readEnvOrDefault("MYSQL_PASSWORD", ""),
+                readEnvOrDefault("MYSQL_DATABASE", "campus_shuttle_system")
+            },
+            amap_web_service_key);
+        const PlanningSummary summary = planning_service.runPlan(readEnvOrDefault("SCHEDULE_DATE", "2026-03-19"));
+        return buildHttpResponse(200, "OK", planningSummaryToJson(summary));
     }
 
     const int station_id = parseStationIdFromPath(request.path);
     if (station_id > 0 && request.method == "PUT") {
-        const ApiStation updated = repository.updateStation(station_id, parseStationPayload(request.body));
+        const ApiStation updated = station_repository.updateStation(station_id, parseStationPayload(request.body));
         return buildHttpResponse(200, "OK", stationToJson(updated));
     }
 
     if (station_id > 0 && request.method == "DELETE") {
-        repository.deleteStation(station_id);
+        station_repository.deleteStation(station_id);
+        return buildHttpResponse(200, "OK", "{\"message\":\"deleted\"}");
+    }
+
+    const int vehicle_id = parseVehicleIdFromPath(request.path);
+    if (vehicle_id > 0 && request.method == "PUT") {
+        const ApiVehicle updated = vehicle_repository.updateVehicle(vehicle_id, parseVehiclePayload(request.body));
+        return buildHttpResponse(200, "OK", vehicleToJson(updated));
+    }
+
+    if (vehicle_id > 0 && request.method == "DELETE") {
+        vehicle_repository.deleteVehicle(vehicle_id);
         return buildHttpResponse(200, "OK", "{\"message\":\"deleted\"}");
     }
 
@@ -240,8 +562,11 @@ int main() {
         config.password = readEnvOrDefault("MYSQL_PASSWORD", "");
         config.database = readEnvOrDefault("MYSQL_DATABASE", "campus_shuttle_system");
         const unsigned int api_port = readPortOrDefault("API_PORT", 8080);
+        const std::string amap_web_service_key = readEnvOrDefault("AMAP_WEB_SERVICE_KEY", "");
 
-        StationRepository repository(config);
+        StationRepository station_repository(config);
+        ScheduleRepository schedule_repository(config);
+        VehicleRepository vehicle_repository(config);
 
         const int server_fd = socket(AF_INET, SOCK_STREAM, 0);
         if (server_fd < 0) {
@@ -269,7 +594,7 @@ int main() {
         }
 
         std::cout << "Station API server running on http://127.0.0.1:" << api_port << std::endl;
-        std::cout << "Available endpoints: GET/POST /api/stations, PUT/DELETE /api/stations/{id}" << std::endl;
+        std::cout << "Available endpoints: GET/POST /api/stations, PUT/DELETE /api/stations/{id}, GET/POST /api/vehicles, PUT/DELETE /api/vehicles/{id}, POST /api/plan, GET /api/schedule-results, GET /api/route-polylines" << std::endl;
 
         while (true) {
             sockaddr_in client_address {};
@@ -282,7 +607,12 @@ int main() {
             try {
                 const std::string raw_request = readRequestFromSocket(client_socket);
                 const HttpRequest request = parseRequest(raw_request);
-                const std::string response = handleRequest(request, repository);
+                const std::string response = handleRequest(
+                    request,
+                    station_repository,
+                    schedule_repository,
+                    vehicle_repository,
+                    amap_web_service_key);
                 send(client_socket, response.c_str(), response.size(), 0);
             } catch (const std::exception& ex) {
                 const std::string response = buildHttpResponse(

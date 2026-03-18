@@ -25,6 +25,7 @@ struct Vehicle {
     std::string plate_number;
     int capacity = 0;
     int max_run_minutes = 0;
+    int earliest_departure_minutes = 0;
 };
 
 struct RoutePlan {

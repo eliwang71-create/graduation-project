@@ -8,48 +8,32 @@ const state = {
     mapUser: null,         // 用户端地图实例
     placeSearch: null,
 
-    // 初始站点数据 (包含 Depot 和请求节点)
-    stations: [
-        { id: 1, name: '西安财经大学长安校区东大门', lng: 108.938837, lat: 34.116631, demand: 0, service_time: 0, tw_start: '06:00', tw_end: '20:00', is_depot: true },
-        { id: 2, name: '金地常宁府', lng: 108.940523, lat: 34.120512, demand: 5, service_time: 2, tw_start: '07:10', tw_end: '07:20', is_depot: false },
-        { id: 3, name: '任家寨', lng: 108.935511, lat: 34.125533, demand: 3, service_time: 2, tw_start: '07:15', tw_end: '07:25', is_depot: false },
-        { id: 4, name: '杜永村', lng: 108.945522, lat: 34.135544, demand: 4, service_time: 2, tw_start: '07:20', tw_end: '07:30', is_depot: false },
-        { id: 5, name: '南长安街壹号', lng: 108.942533, lat: 34.145555, demand: 6, service_time: 2, tw_start: '07:30', tw_end: '07:40', is_depot: false },
-        { id: 6, name: '智慧新城', lng: 108.925544, lat: 34.155566, demand: 2, service_time: 2, tw_start: '07:40', tw_end: '07:50', is_depot: false },
-    ],
+    stations: [],
 
     // 模拟 VRPTW 算法调度结果
-    routes: [
-        {
-            id: 'V1', name: '1号线', color: '#3B82F6',
-            path: [1, 2, 3, 6, 1],
-            schedule: [
-                { stationId: 1, arr: '-', dep: '07:08', type: 'depot_start' },
-                { stationId: 2, arr: '07:12', dep: '07:14', type: 'pickup' },
-                { stationId: 3, arr: '07:20', dep: '07:22', type: 'pickup' },
-                { stationId: 6, arr: '07:42', dep: '07:44', type: 'pickup' },
-                { stationId: 1, arr: '07:55', dep: '-', type: 'depot_end' },
-            ]
-        },
-        {
-            id: 'V2', name: '2号线', color: '#10B981',
-            path: [1, 4, 5, 1],
-            schedule: [
-                { stationId: 1, arr: '-', dep: '07:10', type: 'depot_start' },
-                { stationId: 4, arr: '07:22', dep: '07:24', type: 'pickup' },
-                { stationId: 5, arr: '07:33', dep: '07:35', type: 'pickup' },
-                { stationId: 1, arr: '07:50', dep: '-', type: 'depot_end' },
-            ]
-        }
-    ],
+    routes: [],
+    vehicles: [],
 
     markers: [],
     infoWindow: null,
     tempMarker: null,
-    stationsLoadedFromApi: false
+    stationsLoadedFromApi: false,
+    planningOverlayTimer: null
 };
 
 const API_BASE_URL = 'http://127.0.0.1:8080/api';
+const SCHOOL_CENTER = [108.9514, 34.1579];
+const SCHOOL_DEPOT_TEMPLATE = {
+    name: '西安财经大学长安校区东大门',
+    address: '西安财经大学长安校区东大门',
+    lng: SCHOOL_CENTER[0],
+    lat: SCHOOL_CENTER[1],
+    demand: 0,
+    service_time: 1,
+    tw_start: '06:00',
+    tw_end: '08:00',
+    is_depot: true
+};
 
 /* ==========================================
  * 视图与导航控制
@@ -60,6 +44,8 @@ async function handleLogin(e) {
     state.currentUserRole = role;
 
     await loadStationsFromApi(true);
+    await loadRoutesFromApi(true);
+    await loadVehiclesFromApi(true);
 
     document.getElementById('login-view').classList.add('hidden-view');
 
@@ -126,6 +112,8 @@ function switchAdminTab(tabId) {
         document.getElementById('dash-station-count').innerText = state.stations.length;
         const totalDemand = state.stations.reduce((sum, s) => sum + parseInt(s.demand || 0, 10), 0);
         document.getElementById('dash-demand-count').innerText = totalDemand;
+    } else if (tabId === 'admin-vehicles') {
+        renderVehicleTable();
     }
 }
 
@@ -150,6 +138,22 @@ function stationToApiPayload(station) {
     };
 }
 
+async function parseApiResponse(response) {
+    let payload = null;
+    try {
+        payload = await response.json();
+    } catch (_) {
+        payload = null;
+    }
+
+    if (!response.ok) {
+        const message = payload && payload.message ? payload.message : `HTTP ${response.status}`;
+        throw new Error(message);
+    }
+
+    return payload;
+}
+
 function normalizeStationFromApi(station) {
     return {
         id: station.id,
@@ -166,6 +170,22 @@ function normalizeStationFromApi(station) {
     };
 }
 
+function normalizeVehicleFromApi(vehicle) {
+    return {
+        id: vehicle.id,
+        vehicle_code: vehicle.vehicle_code,
+        plate_number: vehicle.plate_number,
+        capacity: Number(vehicle.capacity),
+        driver_name: vehicle.driver_name || '',
+        driver_phone: vehicle.driver_phone || '',
+        status: vehicle.status || 'idle',
+        start_depot: vehicle.start_depot || '',
+        end_depot: vehicle.end_depot || '',
+        max_run_minutes: Number(vehicle.max_run_minutes || 120),
+        earliest_departure_time: vehicle.earliest_departure_time || '06:40'
+    };
+}
+
 async function loadStationsFromApi(silent = false) {
     try {
         const response = await fetch(`${API_BASE_URL}/stations`);
@@ -173,13 +193,147 @@ async function loadStationsFromApi(silent = false) {
             throw new Error(`HTTP ${response.status}`);
         }
         const payload = await response.json();
-        if (Array.isArray(payload.stations) && payload.stations.length > 0) {
-            state.stations = payload.stations.map(normalizeStationFromApi);
-            state.stationsLoadedFromApi = true;
-        }
+        state.stations = Array.isArray(payload.stations) ? payload.stations.map(normalizeStationFromApi) : [];
+        state.stationsLoadedFromApi = true;
     } catch (error) {
         if (!silent) {
-            alert(`站点数据读取失败，将继续使用前端内置数据。\n${error.message}`);
+            alert(`站点数据读取失败。\n${error.message}`);
+        }
+    }
+}
+
+async function loadVehiclesFromApi(silent = false) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/vehicles`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const payload = await response.json();
+        state.vehicles = Array.isArray(payload.vehicles) ? payload.vehicles.map(normalizeVehicleFromApi) : [];
+    } catch (error) {
+        if (!silent) {
+            alert(`车辆数据读取失败。\n${error.message}`);
+        }
+    }
+}
+
+function buildRouteColor(index) {
+    const palette = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
+    return palette[index % palette.length];
+}
+
+function setPlanningOverlayVisible(visible) {
+    const overlay = document.getElementById('planning-overlay');
+    if (!overlay) return;
+    overlay.classList.toggle('hidden-view', !visible);
+}
+
+function updatePlanningStep(stepIndex, text) {
+    document.querySelectorAll('.planning-step').forEach((element, index) => {
+        element.classList.toggle('active-step', index === stepIndex);
+        element.classList.toggle('done-step', index < stepIndex);
+    });
+    const status = document.getElementById('planning-status-text');
+    if (status && text) {
+        status.innerText = text;
+    }
+}
+
+function startPlanningOverlay() {
+    if (state.planningOverlayTimer) {
+        clearInterval(state.planningOverlayTimer);
+    }
+    setPlanningOverlayVisible(true);
+    const steps = [
+        '正在读取最新站点与车辆数据...',
+        '正在请求真实道路距离与行驶时间...',
+        '正在执行蚁群算法迭代搜索...',
+        '正在写回调度结果并刷新页面...'
+    ];
+    let currentStep = 0;
+    updatePlanningStep(currentStep, steps[currentStep]);
+    state.planningOverlayTimer = setInterval(() => {
+        currentStep = Math.min(currentStep + 1, steps.length - 1);
+        updatePlanningStep(currentStep, steps[currentStep]);
+    }, 1200);
+}
+
+function stopPlanningOverlay() {
+    if (state.planningOverlayTimer) {
+        clearInterval(state.planningOverlayTimer);
+        state.planningOverlayTimer = null;
+    }
+    setPlanningOverlayVisible(false);
+}
+
+async function loadRoutesFromApi(silent = false) {
+    try {
+        const [scheduleResponse, polylineResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/schedule-results`),
+            fetch(`${API_BASE_URL}/route-polylines`)
+        ]);
+        if (!scheduleResponse.ok) {
+            throw new Error(`schedule HTTP ${scheduleResponse.status}`);
+        }
+        if (!polylineResponse.ok) {
+            throw new Error(`route polyline HTTP ${polylineResponse.status}`);
+        }
+        const payload = await scheduleResponse.json();
+        const polylinePayload = await polylineResponse.json();
+        const scheduleStops = Array.isArray(payload.schedule_stops) ? payload.schedule_stops : [];
+        const polylineRoutes = Array.isArray(polylinePayload.routes) ? polylinePayload.routes : [];
+        const grouped = new Map();
+
+        scheduleStops.forEach((stop) => {
+            if (!grouped.has(stop.vehicle_id)) {
+                grouped.set(stop.vehicle_id, {
+                    id: `V${stop.vehicle_id}`,
+                    name: stop.plate_number
+                        ? `${stop.vehicle_code || `车辆${stop.vehicle_id}`} / ${stop.plate_number}`
+                        : (stop.vehicle_code || `车辆${stop.vehicle_id}`),
+                    color: '#3B82F6',
+                    path: [],
+                    stopDetails: [],
+                    schedule: [],
+                    roadPolyline: []
+                });
+            }
+
+            const route = grouped.get(stop.vehicle_id);
+            route.path.push(stop.station_id);
+            route.stopDetails.push({
+                stationId: stop.station_id,
+                stationName: stop.station_name,
+                lng: Number(stop.lng),
+                lat: Number(stop.lat),
+                isDepot: Boolean(stop.is_depot)
+            });
+            route.schedule.push({
+                stationId: stop.station_id,
+                stationName: stop.station_name,
+                lng: Number(stop.lng),
+                lat: Number(stop.lat),
+                isDepot: Boolean(stop.is_depot),
+                arr: stop.arrival_time || '-',
+                dep: stop.departure_time || '-',
+                feasible_flag: stop.feasible_flag
+            });
+        });
+
+        state.routes = Array.from(grouped.values()).map((route, index) => ({
+            ...route,
+            color: buildRouteColor(index)
+        }));
+
+        polylineRoutes.forEach((polylineRoute) => {
+            const target = state.routes.find((route) => route.id === `V${polylineRoute.vehicle_id}`);
+            if (target) {
+                target.roadPolyline = Array.isArray(polylineRoute.polyline) ? polylineRoute.polyline : [];
+            }
+        });
+    } catch (error) {
+        if (!silent) {
+            alert(`调度结果读取失败。\n${error.message}`);
         }
     }
 }
@@ -189,7 +343,7 @@ function getMapCenter() {
     if (depot) {
         return [depot.lng, depot.lat];
     }
-    return [108.938837, 34.136631];
+    return SCHOOL_CENTER;
 }
 
 function checkAMap() {
@@ -291,6 +445,10 @@ function renderStationMarkers(mapInstance, isEditable) {
 
 function renderStationList() {
     const container = document.getElementById('station-list-container');
+    if (!Array.isArray(state.stations) || state.stations.length === 0) {
+        container.innerHTML = '<div class="p-4 text-sm text-gray-500">当前没有站点，请通过地图点击或搜索真实地点新增站点。</div>';
+        return;
+    }
     let html = '';
     state.stations.forEach((s) => {
         html += `
@@ -302,11 +460,139 @@ function renderStationList() {
             <div class="text-xs text-gray-400">
                 时间窗: ${s.tw_start} - ${s.tw_end} | 服务: ${s.service_time}m
             </div>
+            <div class="mt-2 flex gap-2">
+                <button onclick="event.stopPropagation(); openStationEditor(${s.id})" class="text-xs text-blue-600 hover:text-blue-800">编辑</button>
+                <button onclick="event.stopPropagation(); deleteStation(${s.id})" class="text-xs text-red-600 hover:text-red-800">删除</button>
+            </div>
         </div>
         `;
     });
     container.innerHTML = html;
 }
+
+function renderVehicleTable() {
+    const tbody = document.getElementById('vehicle-table-body');
+    if (!tbody) {
+        return;
+    }
+
+    if (!Array.isArray(state.vehicles) || state.vehicles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-6 text-sm text-gray-500 text-center">当前没有车辆，请先新增车辆。</td></tr>';
+        return;
+    }
+
+    let html = '';
+    state.vehicles.forEach((vehicle) => {
+        const statusLabel = vehicle.status === 'idle' ? '可用' : vehicle.status;
+        html += `
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vehicle.vehicle_code}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${vehicle.plate_number}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vehicle.capacity}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vehicle.start_depot || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vehicle.earliest_departure_time || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${statusLabel}</span></td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <button onclick="openVehicleForm(${vehicle.id})" class="text-blue-600 mr-3">编辑</button>
+                    <button onclick="deleteVehicle(${vehicle.id})" class="text-red-600">删除</button>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+window.openVehicleForm = function openVehicleForm(id = null) {
+    const vehicle = id ? state.vehicles.find((item) => item.id === id) : null;
+    const plateNumber = prompt('请输入车牌号', vehicle ? vehicle.plate_number : '');
+    if (plateNumber === null || !plateNumber.trim()) return;
+    const capacityValue = prompt('请输入车辆容量(人)', vehicle ? String(vehicle.capacity) : '20');
+    if (capacityValue === null || !capacityValue.trim()) return;
+    const startDepot = prompt('请输入起始车场/起点', vehicle ? vehicle.start_depot : '西安财经大学长安校区东大门');
+    if (startDepot === null) return;
+    const endDepot = prompt('请输入终点', vehicle ? vehicle.end_depot : '西安财经大学长安校区东大门');
+    if (endDepot === null) return;
+    const driverName = prompt('请输入司机姓名', vehicle ? vehicle.driver_name : '');
+    if (driverName === null) return;
+    const driverPhone = prompt('请输入司机电话', vehicle ? vehicle.driver_phone : '');
+    if (driverPhone === null) return;
+    const maxRunMinutesValue = prompt('请输入最大运行时长(分钟)', vehicle ? String(vehicle.max_run_minutes) : '120');
+    if (maxRunMinutesValue === null || !maxRunMinutesValue.trim()) return;
+    const earliestDepartureTime = prompt('请输入最早发车时间(HH:MM)', vehicle ? vehicle.earliest_departure_time : '06:40');
+    if (earliestDepartureTime === null || !earliestDepartureTime.trim()) return;
+
+    saveVehicle(id, {
+        plate_number: plateNumber.trim(),
+        capacity: Number(capacityValue),
+        start_depot: startDepot.trim(),
+        end_depot: endDepot.trim(),
+        driver_name: driverName.trim(),
+        driver_phone: driverPhone.trim(),
+        status: vehicle ? vehicle.status : 'idle',
+        max_run_minutes: Number(maxRunMinutesValue),
+        earliest_departure_time: earliestDepartureTime.trim()
+    });
+};
+
+async function saveVehicle(id, payload) {
+    try {
+        const response = await fetch(
+            id ? `${API_BASE_URL}/vehicles/${id}` : `${API_BASE_URL}/vehicles`,
+            {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }
+        );
+        await parseApiResponse(response);
+        await loadVehiclesFromApi(true);
+        renderVehicleTable();
+        alert('车辆保存成功。');
+    } catch (error) {
+        alert(`车辆保存失败。\n${error.message}`);
+    }
+}
+
+window.deleteVehicle = async function deleteVehicle(id) {
+    if (!confirm('确定要删除这辆车吗？')) return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/vehicles/${id}`, { method: 'DELETE' });
+        await parseApiResponse(response);
+        await loadVehiclesFromApi(true);
+        renderVehicleTable();
+    } catch (error) {
+        alert(`车辆删除失败。\n${error.message}`);
+    }
+};
+
+window.runPlanning = async function runPlanning() {
+    startPlanningOverlay();
+    try {
+        const response = await fetch(`${API_BASE_URL}/plan`, { method: 'POST' });
+        const result = await parseApiResponse(response);
+        if (!result.success || !result.feasible || !result.schedule_rows) {
+            throw new Error(result.message || '当前未生成可行调度结果。');
+        }
+        updatePlanningStep(3, '调度结果已生成，正在刷新地图...');
+        await loadStationsFromApi(true);
+        await loadVehiclesFromApi(true);
+        await loadRoutesFromApi(true);
+        if (state.mapRoute) {
+            state.mapRoute.destroy();
+            state.mapRoute = null;
+            initAdminRouteMap();
+        }
+        if (state.mapStation) {
+            renderStationMarkers(state.mapStation, true);
+            renderStationList();
+        }
+        alert(`调度完成。生成 ${result.schedule_rows} 条结果，目标距离 ${result.objective_value} km。`);
+    } catch (error) {
+        alert(`重新规划失败。\n${error.message}`);
+    } finally {
+        stopPlanningOverlay();
+    }
+};
 
 function focusStation(lng, lat) {
     if (state.mapStation) {
@@ -385,6 +671,60 @@ function openStationFormWindow(station, lng, lat, defaultName = '') {
     }
 }
 
+window.openStationEditor = function openStationEditor(id) {
+    const station = state.stations.find((item) => item.id === id);
+    if (!station) {
+        alert('未找到要编辑的站点。');
+        return;
+    }
+    openStationFormWindow(station);
+};
+
+window.addSchoolDepot = async function addSchoolDepot() {
+    const existingDepot = state.stations.find((station) => station.is_depot);
+    if (existingDepot) {
+        alert('当前已经存在学校终点站，请直接编辑现有终点站。');
+        return;
+    }
+
+    try {
+        let depotPayload = { ...SCHOOL_DEPOT_TEMPLATE };
+        if (typeof AMap !== 'undefined') {
+            await new Promise((resolve) => {
+                AMap.plugin(['AMap.PlaceSearch'], () => {
+                    const placeSearch = new AMap.PlaceSearch({ city: '西安' });
+                    placeSearch.search('西安财经大学长安校区东大门', (status, result) => {
+                        if (status === 'complete' && result.info === 'OK' && result.poiList?.pois?.length) {
+                            const poi = result.poiList.pois[0];
+                            depotPayload = {
+                                ...depotPayload,
+                                name: poi.name || depotPayload.name,
+                                address: poi.name || depotPayload.address,
+                                lng: poi.location.lng,
+                                lat: poi.location.lat
+                            };
+                        }
+                        resolve();
+                    });
+                });
+            });
+        }
+
+        const response = await fetch(`${API_BASE_URL}/stations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(stationToApiPayload(depotPayload))
+        });
+        await parseApiResponse(response);
+        await loadStationsFromApi(true);
+        renderStationMarkers(state.mapStation, true);
+        renderStationList();
+        alert('学校终点站已添加。');
+    } catch (error) {
+        alert(`添加学校终点站失败。\n${error.message}`);
+    }
+};
+
 window.saveStation = async function saveStation(id) {
     const data = {
         name: document.getElementById('fm-name').value,
@@ -407,12 +747,10 @@ window.saveStation = async function saveStation(id) {
         };
         const endpoint = id ? `${API_BASE_URL}/stations/${id}` : `${API_BASE_URL}/stations`;
         const response = await fetch(endpoint, request);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        await parseApiResponse(response);
         await loadStationsFromApi(true);
     } catch (error) {
-        alert(`站点保存失败，请确认后端 API 已启动。\n${error.message}`);
+        alert(`站点保存失败。\n${error.message}`);
         return;
     }
 
@@ -430,15 +768,15 @@ window.deleteStation = async function deleteStation(id) {
     if (!confirm('确定要删除此站点吗？')) return;
     try {
         const response = await fetch(`${API_BASE_URL}/stations/${id}`, { method: 'DELETE' });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        await parseApiResponse(response);
         await loadStationsFromApi(true);
     } catch (error) {
-        alert(`删除失败，请确认后端 API 已启动。\n${error.message}`);
+        alert(`删除失败。\n${error.message}`);
         return;
     }
-    state.infoWindow.close();
+    if (state.infoWindow) {
+        state.infoWindow.close();
+    }
     renderStationMarkers(state.mapStation, true);
     renderStationList();
 };
@@ -450,6 +788,9 @@ function initAdminRouteMap() {
     if (!checkAMap()) return;
     if (state.mapRoute) {
         state.mapRoute.resize();
+        state.mapRoute.clearMap();
+        drawRoutesOnMap(state.mapRoute);
+        renderRouteDetails();
         return;
     }
 
@@ -459,17 +800,23 @@ function initAdminRouteMap() {
         viewMode: '2D'
     });
 
-    renderStationMarkers(state.mapRoute, false);
     drawRoutesOnMap(state.mapRoute);
     renderRouteDetails();
 }
 
 function drawRoutesOnMap(mapInstance) {
+    if (!Array.isArray(state.routes) || state.routes.length === 0) {
+        return;
+    }
+
     state.routes.forEach((route) => {
-        const pathCoords = route.path.map((id) => {
-            const st = getStationById(id);
-            return [st.lng, st.lat];
-        });
+        const pathCoords = Array.isArray(route.roadPolyline) && route.roadPolyline.length > 1
+            ? route.roadPolyline.map((point) => [point.lng, point.lat])
+            : route.stopDetails.map((stop) => [stop.lng, stop.lat]).filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+
+        if (pathCoords.length < 2) {
+            return;
+        }
 
         const polyline = new AMap.Polyline({
             path: pathCoords,
@@ -485,6 +832,27 @@ function drawRoutesOnMap(mapInstance) {
             showDir: true
         });
         polyline.setMap(mapInstance);
+
+        route.stopDetails.forEach((stop, index) => {
+            if (!Number.isFinite(stop.lng) || !Number.isFinite(stop.lat)) {
+                return;
+            }
+
+            const orderMarker = new AMap.Marker({
+                position: [stop.lng, stop.lat],
+                content: `<div style="width:24px;height:24px;border-radius:9999px;background:${route.color};color:#fff;font-size:12px;line-height:24px;text-align:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25);">${index + 1}</div>`,
+                offset: new AMap.Pixel(-12, -12)
+            });
+            orderMarker.setMap(mapInstance);
+
+            orderMarker.on('click', () => {
+                const info = new AMap.InfoWindow({
+                    content: `<div class="p-2 text-sm"><b>${stop.stationName}</b><br>到达: ${route.schedule[index]?.arr || '-'}<br>离开: ${route.schedule[index]?.dep || '-'}<\/div>`,
+                    offset: new AMap.Pixel(0, -18)
+                });
+                info.open(mapInstance, [stop.lng, stop.lat]);
+            });
+        });
     });
 
     if (mapInstance && state.markers.length > 0) {
@@ -494,6 +862,11 @@ function drawRoutesOnMap(mapInstance) {
 
 function renderRouteDetails() {
     const container = document.getElementById('route-details-container');
+    if (!Array.isArray(state.routes) || state.routes.length === 0) {
+        container.innerHTML = '<div class="text-sm text-gray-500">暂无可展示的调度结果，请先运行调度算法并写回数据库。</div>';
+        return;
+    }
+
     let html = '';
 
     state.routes.forEach((route) => {
@@ -508,9 +881,9 @@ function renderRouteDetails() {
         `;
 
         route.schedule.forEach((point, index) => {
-            const st = getStationById(point.stationId);
-            const isDepot = st.is_depot;
-            const isFeasible = point.arr !== '-' && point.arr <= st.tw_end && point.arr >= st.tw_start;
+            const isDepot = point.isDepot;
+            const isFeasible = point.feasible_flag === 1 ||
+                point.arr !== '-';
             const statusDot = isDepot ? 'bg-gray-400' : (isFeasible ? 'bg-green-500' : 'bg-red-500');
 
             html += `
@@ -518,10 +891,10 @@ function renderRouteDetails() {
                     <div class="absolute w-3 h-3 rounded-full ${statusDot} -left-[7px] top-1.5 border-2 border-white shadow-sm"></div>
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="font-bold text-gray-800 text-sm">${index + 1}. ${st.name}</p>
+                            <p class="font-bold text-gray-800 text-sm">${index + 1}. ${point.stationName}</p>
                             <p class="text-xs text-gray-500">到达: ${point.arr} | 离开: ${point.dep}</p>
                         </div>
-                        ${!isDepot ? `<div class="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">上 ${st.demand}人</div>` : ''}
+                        ${!isDepot ? `<div class="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">站点</div>` : ''}
                     </div>
                 </div>
             `;
@@ -553,13 +926,17 @@ function initUserMap() {
     });
 
     const userRoute = state.routes[0];
+    if (!userRoute) {
+        return;
+    }
 
     userRoute.path.forEach((id) => {
-        const st = getStationById(id);
-        const isTarget = st.id === 2;
+        const stop = userRoute.stopDetails.find((item) => item.stationId === id);
+        if (!stop) return;
+        const isTarget = !stop.isDepot;
 
         const marker = new AMap.Marker({
-            position: [st.lng, st.lat],
+            position: [stop.lng, stop.lat],
             content: `<div style="background-color: ${isTarget ? '#EF4444' : '#3B82F6'}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>`,
             offset: new AMap.Pixel(-8, -8)
         });
@@ -567,13 +944,15 @@ function initUserMap() {
         marker.setLabel({
             direction: 'right',
             offset: new AMap.Pixel(10, 0),
-            content: `<div class='bg-white px-2 py-1 rounded shadow text-xs'>${st.name}</div>`
+            content: `<div class='bg-white px-2 py-1 rounded shadow text-xs'>${stop.stationName}</div>`
         });
 
         marker.setMap(state.mapUser);
     });
 
-    const pathCoords = userRoute.path.map((id) => [getStationById(id).lng, getStationById(id).lat]);
+    const pathCoords = Array.isArray(userRoute.roadPolyline) && userRoute.roadPolyline.length > 1
+        ? userRoute.roadPolyline.map((point) => [point.lng, point.lat])
+        : userRoute.stopDetails.map((stop) => [stop.lng, stop.lat]).filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
     const polyline = new AMap.Polyline({
         path: pathCoords,
         isOutline: true,
@@ -593,12 +972,15 @@ function initUserMap() {
 function renderUserRouteList() {
     const container = document.getElementById('user-route-stops');
     const userRoute = state.routes[0];
+    if (!userRoute) {
+        container.innerHTML = '<div class="text-sm text-gray-500">暂无个人通勤路线，请等待管理员生成调度结果。</div>';
+        return;
+    }
     let html = '';
 
     userRoute.schedule.forEach((point) => {
-        const st = getStationById(point.stationId);
-        const isUserStop = st.id === 2;
-        const isEndStop = st.id === 1 && point.type === 'depot_end';
+        const isUserStop = !point.isDepot;
+        const isEndStop = point.isDepot;
 
         let textClass = 'text-gray-500';
         let dotClass = 'bg-gray-300';
@@ -611,7 +993,7 @@ function renderUserRouteList() {
             <div class="relative pb-4">
                 <div class="absolute w-3 h-3 rounded-full ${dotClass} -left-[23px] top-1 border-2 border-white"></div>
                 <div class="flex justify-between items-center">
-                    <span class="${textClass}">${st.name}</span>
+                    <span class="${textClass}">${point.stationName}</span>
                     <span class="text-sm font-mono ${textClass}">${point.arr !== '-' ? point.arr : point.dep}</span>
                 </div>
             </div>

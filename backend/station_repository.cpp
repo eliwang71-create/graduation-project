@@ -197,7 +197,33 @@ ApiStation StationRepository::updateStation(int id, const ApiStation& station) c
 
 void StationRepository::deleteStation(int id) const {
     MySqlHandle connection(connectDatabase(config_), mysql_close);
-    std::ostringstream sql;
-    sql << "DELETE FROM stations WHERE id = " << id;
-    runQuery(connection.get(), sql.str());
+    runQuery(connection.get(), "START TRANSACTION");
+    try {
+        {
+            std::ostringstream sql;
+            sql << "DELETE FROM distance_matrix WHERE from_station_id = " << id
+                << " OR to_station_id = " << id;
+            runQuery(connection.get(), sql.str());
+        }
+        {
+            std::ostringstream sql;
+            sql << "DELETE FROM schedule WHERE station_id = " << id;
+            runQuery(connection.get(), sql.str());
+        }
+        {
+            std::ostringstream sql;
+            sql << "DELETE FROM routes WHERE start_station_id = " << id
+                << " OR end_station_id = " << id;
+            runQuery(connection.get(), sql.str());
+        }
+        {
+            std::ostringstream sql;
+            sql << "DELETE FROM stations WHERE id = " << id;
+            runQuery(connection.get(), sql.str());
+        }
+        runQuery(connection.get(), "COMMIT");
+    } catch (...) {
+        runQuery(connection.get(), "ROLLBACK");
+        throw;
+    }
 }

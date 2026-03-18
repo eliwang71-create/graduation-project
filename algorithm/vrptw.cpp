@@ -76,6 +76,7 @@ RouteMetrics evaluateRoute(
     }
 
     int current_time = 0;
+    current_time = std::max(current_time, vehicle.earliest_departure_minutes);
     int load = 0;
 
     metrics.arrival_times_minutes.reserve(station_ids.size());
@@ -248,6 +249,31 @@ RoutePlan finalizeRoute(const VRPTWInstance& instance, const Vehicle& vehicle, c
     return route;
 }
 
+std::vector<int> findSeedCandidates(
+    const VRPTWInstance& instance,
+    const Vehicle& vehicle,
+    const std::unordered_set<int>& tabu_list) {
+    std::vector<int> candidates;
+    for (int station_id : tabu_list) {
+        RoutePlan empty_route;
+        if (canAppendStation(instance, vehicle, empty_route, station_id)) {
+            candidates.push_back(station_id);
+        }
+    }
+
+    std::sort(candidates.begin(), candidates.end(), [&](int lhs, int rhs) {
+        const int left_index = stationIndexById(instance, lhs);
+        const int right_index = stationIndexById(instance, rhs);
+        const int depot_index = stationIndexById(instance, instance.destination_station_id);
+        if (left_index < 0 || right_index < 0 || depot_index < 0) {
+            return lhs < rhs;
+        }
+        return instance.travel_time_matrix_minutes[left_index][depot_index] >
+               instance.travel_time_matrix_minutes[right_index][depot_index];
+    });
+    return candidates;
+}
+
 AntSolution constructAntSolution(
     const VRPTWInstance& instance,
     const std::vector<std::vector<double>>& pheromone,
@@ -259,7 +285,8 @@ AntSolution constructAntSolution(
     // it cannot be visited again in the same ant solution.
     std::unordered_set<int> tabu_list = createCustomerTabuSet(instance);
 
-    for (const auto& vehicle : instance.vehicles) {
+    for (std::size_t vehicle_index = 0; vehicle_index < instance.vehicles.size(); ++vehicle_index) {
+        const auto& vehicle = instance.vehicles[vehicle_index];
         if (tabu_list.empty()) {
             break;
         }
@@ -268,9 +295,30 @@ AntSolution constructAntSolution(
         partial_route.vehicle_id = vehicle.id;
 
         int current_station_id = -1;
-        int current_time_minutes = 0;
+        int current_time_minutes = vehicle.earliest_departure_minutes;
+
+        const auto seed_candidates = findSeedCandidates(instance, vehicle, tabu_list);
+        if (!seed_candidates.empty()) {
+            const int seed_station_id = seed_candidates.front();
+            partial_route.station_ids.push_back(seed_station_id);
+            tabu_list.erase(seed_station_id);
+
+            const Station* seed_station = findStationById(instance, seed_station_id);
+            if (seed_station != nullptr) {
+                current_time_minutes = std::max(current_time_minutes, seed_station->window.earliest_minutes);
+                current_time_minutes += seed_station->service_minutes;
+            }
+            current_station_id = seed_station_id;
+        }
 
         while (!tabu_list.empty()) {
+            const int remaining_vehicles = static_cast<int>(instance.vehicles.size() - vehicle_index - 1);
+            if (!partial_route.station_ids.empty() &&
+                remaining_vehicles > 0 &&
+                static_cast<int>(tabu_list.size()) <= remaining_vehicles) {
+                break;
+            }
+
             const auto candidates = buildCandidateList(
                 instance,
                 vehicle,

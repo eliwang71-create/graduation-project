@@ -7,6 +7,40 @@ body {
     overflow: hidden; /* 整体防滚动，内部局部滚动 */
 }
 
+.planning-spinner {
+    width: 42px;
+    height: 42px;
+    border: 4px solid #dbeafe;
+    border-top-color: #2563eb;
+    border-radius: 9999px;
+    animation: planning-spin 1s linear infinite;
+}
+
+.planning-step {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.planning-step.active-step {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+}
+
+.planning-step.done-step {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+@keyframes planning-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 /* 隐藏元素的工具类 */
 .hidden-view {
     display: none !important;
