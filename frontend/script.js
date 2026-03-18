@@ -18,7 +18,9 @@ const state = {
     infoWindow: null,
     tempMarker: null,
     stationsLoadedFromApi: false,
-    planningOverlayTimer: null
+    planningOverlayTimer: null,
+    adminDrivingRenderers: [],
+    userDrivingRenderer: null
 };
 
 const API_BASE_URL = 'http://127.0.0.1:8080/api';
@@ -68,6 +70,11 @@ function logout() {
     if (state.mapStation) state.mapStation.destroy();
     if (state.mapRoute) state.mapRoute.destroy();
     if (state.mapUser) state.mapUser.destroy();
+    clearDrivingRenderers(state.adminDrivingRenderers);
+    if (state.userDrivingRenderer && typeof state.userDrivingRenderer.clear === 'function') {
+        state.userDrivingRenderer.clear();
+    }
+    state.userDrivingRenderer = null;
     state.mapStation = state.mapRoute = state.mapUser = null;
 }
 
@@ -220,6 +227,69 @@ async function loadVehiclesFromApi(silent = false) {
 function buildRouteColor(index) {
     const palette = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
     return palette[index % palette.length];
+}
+
+function hasRealRoadPolyline(route) {
+    return Array.isArray(route?.roadPolyline) && route.roadPolyline.length > 1;
+}
+
+function clearDrivingRenderers(renderers) {
+    if (!Array.isArray(renderers)) {
+        return;
+    }
+    renderers.forEach((renderer) => {
+        if (renderer && typeof renderer.clear === 'function') {
+            renderer.clear();
+        }
+    });
+    renderers.length = 0;
+}
+
+function buildPathFromDrivingResult(result) {
+    const route = result?.routes?.[0];
+    if (!route || !Array.isArray(route.steps)) {
+        return [];
+    }
+
+    const path = [];
+    route.steps.forEach((step) => {
+        if (!Array.isArray(step.path)) {
+            return;
+        }
+        step.path.forEach((lngLat) => {
+            const point = [lngLat.lng, lngLat.lat];
+            const last = path[path.length - 1];
+            if (!last || Math.abs(last[0] - point[0]) > 1e-9 || Math.abs(last[1] - point[1]) > 1e-9) {
+                path.push(point);
+            }
+        });
+    });
+    return path;
+}
+
+function getDisplayStopPosition(route, stop) {
+    if (!stop || !Number.isFinite(stop.lng) || !Number.isFinite(stop.lat)) {
+        return null;
+    }
+
+    if (!hasRealRoadPolyline(route)) {
+        return [stop.lng, stop.lat];
+    }
+
+    let nearestPoint = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    route.roadPolyline.forEach((point) => {
+        const dx = point.lng - stop.lng;
+        const dy = point.lat - stop.lat;
+        const distance = dx * dx + dy * dy;
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestPoint = point;
+        }
+    });
+
+    return nearestPoint ? [nearestPoint.lng, nearestPoint.lat] : [stop.lng, stop.lat];
 }
 
 function setPlanningOverlayVisible(visible) {
@@ -789,6 +859,7 @@ function initAdminRouteMap() {
     if (state.mapRoute) {
         state.mapRoute.resize();
         state.mapRoute.clearMap();
+        clearDrivingRenderers(state.adminDrivingRenderers);
         drawRoutesOnMap(state.mapRoute);
         renderRouteDetails();
         return;
@@ -800,6 +871,7 @@ function initAdminRouteMap() {
         viewMode: '2D'
     });
 
+    clearDrivingRenderers(state.adminDrivingRenderers);
     drawRoutesOnMap(state.mapRoute);
     renderRouteDetails();
 }
@@ -810,36 +882,59 @@ function drawRoutesOnMap(mapInstance) {
     }
 
     state.routes.forEach((route) => {
-        const pathCoords = Array.isArray(route.roadPolyline) && route.roadPolyline.length > 1
-            ? route.roadPolyline.map((point) => [point.lng, point.lat])
-            : route.stopDetails.map((stop) => [stop.lng, stop.lat]).filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
-
-        if (pathCoords.length < 2) {
+        if (!Array.isArray(route.stopDetails) || route.stopDetails.length < 2) {
+            return;
+        }
+        const validStops = route.stopDetails.filter((stop) => Number.isFinite(stop.lng) && Number.isFinite(stop.lat));
+        if (validStops.length < 2) {
             return;
         }
 
-        const polyline = new AMap.Polyline({
-            path: pathCoords,
-            isOutline: true,
-            outlineColor: '#ffeeff',
-            borderWeight: 2,
-            strokeColor: route.color,
-            strokeOpacity: 0.8,
-            strokeWeight: 5,
-            strokeStyle: 'solid',
-            lineJoin: 'round',
-            lineCap: 'round',
-            showDir: true
+        const origin = new AMap.LngLat(validStops[0].lng, validStops[0].lat);
+        const destination = new AMap.LngLat(validStops[validStops.length - 1].lng, validStops[validStops.length - 1].lat);
+        const waypoints = validStops.slice(1, -1).map((stop) => new AMap.LngLat(stop.lng, stop.lat));
+
+        const driving = new AMap.Driving({
+            hideMarkers: true,
+            showTraffic: false,
+            autoFitView: false
         });
-        polyline.setMap(mapInstance);
+        state.adminDrivingRenderers.push(driving);
+        driving.search(origin, destination, { waypoints }, (status, result) => {
+            if (status !== 'complete') {
+                console.warn('AMap Driving render failed for route', route.id, status);
+                return;
+            }
+
+            const pathCoords = buildPathFromDrivingResult(result);
+            if (pathCoords.length < 2) {
+                return;
+            }
+
+            const polyline = new AMap.Polyline({
+                path: pathCoords,
+                isOutline: true,
+                outlineColor: '#ffffff',
+                borderWeight: 2,
+                strokeColor: route.color,
+                strokeOpacity: 0.92,
+                strokeWeight: 6,
+                strokeStyle: 'solid',
+                lineJoin: 'round',
+                lineCap: 'round',
+                showDir: false
+            });
+            polyline.setMap(mapInstance);
+        });
 
         route.stopDetails.forEach((stop, index) => {
-            if (!Number.isFinite(stop.lng) || !Number.isFinite(stop.lat)) {
+            const displayPosition = getDisplayStopPosition(route, stop);
+            if (!displayPosition) {
                 return;
             }
 
             const orderMarker = new AMap.Marker({
-                position: [stop.lng, stop.lat],
+                position: displayPosition,
                 content: `<div style="width:24px;height:24px;border-radius:9999px;background:${route.color};color:#fff;font-size:12px;line-height:24px;text-align:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25);">${index + 1}</div>`,
                 offset: new AMap.Pixel(-12, -12)
             });
@@ -850,7 +945,7 @@ function drawRoutesOnMap(mapInstance) {
                     content: `<div class="p-2 text-sm"><b>${stop.stationName}</b><br>到达: ${route.schedule[index]?.arr || '-'}<br>离开: ${route.schedule[index]?.dep || '-'}<\/div>`,
                     offset: new AMap.Pixel(0, -18)
                 });
-                info.open(mapInstance, [stop.lng, stop.lat]);
+                info.open(mapInstance, displayPosition);
             });
         });
     });
@@ -930,13 +1025,20 @@ function initUserMap() {
         return;
     }
 
+    if (state.userDrivingRenderer && typeof state.userDrivingRenderer.clear === 'function') {
+        state.userDrivingRenderer.clear();
+    }
+    state.userDrivingRenderer = null;
+
     userRoute.path.forEach((id) => {
         const stop = userRoute.stopDetails.find((item) => item.stationId === id);
         if (!stop) return;
         const isTarget = !stop.isDepot;
+        const displayPosition = getDisplayStopPosition(userRoute, stop);
+        if (!displayPosition) return;
 
         const marker = new AMap.Marker({
-            position: [stop.lng, stop.lat],
+            position: displayPosition,
             content: `<div style="background-color: ${isTarget ? '#EF4444' : '#3B82F6'}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>`,
             offset: new AMap.Pixel(-8, -8)
         });
@@ -950,21 +1052,47 @@ function initUserMap() {
         marker.setMap(state.mapUser);
     });
 
-    const pathCoords = Array.isArray(userRoute.roadPolyline) && userRoute.roadPolyline.length > 1
-        ? userRoute.roadPolyline.map((point) => [point.lng, point.lat])
-        : userRoute.stopDetails.map((stop) => [stop.lng, stop.lat]).filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
-    const polyline = new AMap.Polyline({
-        path: pathCoords,
-        isOutline: true,
-        outlineColor: '#fff',
-        borderWeight: 2,
-        strokeColor: '#3B82F6',
-        strokeOpacity: 0.9,
-        strokeWeight: 6,
-        strokeStyle: 'solid',
-        showDir: true
+    if (!Array.isArray(userRoute.stopDetails) || userRoute.stopDetails.length < 2) {
+        return;
+    }
+    const validStops = userRoute.stopDetails.filter((stop) => Number.isFinite(stop.lng) && Number.isFinite(stop.lat));
+    if (validStops.length < 2) {
+        return;
+    }
+    const origin = new AMap.LngLat(validStops[0].lng, validStops[0].lat);
+    const destination = new AMap.LngLat(validStops[validStops.length - 1].lng, validStops[validStops.length - 1].lat);
+    const waypoints = validStops.slice(1, -1).map((stop) => new AMap.LngLat(stop.lng, stop.lat));
+    state.userDrivingRenderer = new AMap.Driving({
+        hideMarkers: true,
+        showTraffic: false,
+        autoFitView: false
     });
-    polyline.setMap(state.mapUser);
+    state.userDrivingRenderer.search(origin, destination, { waypoints }, (status, result) => {
+        if (status !== 'complete') {
+            console.warn('AMap Driving render failed for user route', status);
+            return;
+        }
+
+        const pathCoords = buildPathFromDrivingResult(result);
+        if (pathCoords.length < 2) {
+            return;
+        }
+
+        const polyline = new AMap.Polyline({
+            path: pathCoords,
+            isOutline: true,
+            outlineColor: '#ffffff',
+            borderWeight: 2,
+            strokeColor: '#3B82F6',
+            strokeOpacity: 0.92,
+            strokeWeight: 6,
+            strokeStyle: 'solid',
+            lineJoin: 'round',
+            lineCap: 'round',
+            showDir: false
+        });
+        polyline.setMap(state.mapUser);
+    });
 
     state.mapUser.setFitView();
 }

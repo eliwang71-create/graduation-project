@@ -371,7 +371,7 @@ std::vector<RoutePoint> requestDrivingPolyline(
     url << "https://restapi.amap.com/v3/direction/driving"
         << "?origin=" << origin.longitude << "," << origin.latitude
         << "&destination=" << destination.longitude << "," << destination.latitude
-        << "&extensions=all"
+        << "&extensions=base"
         << "&output=json"
         << "&strategy=0"
         << "&key=" << amap_web_service_key;
