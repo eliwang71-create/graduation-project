@@ -45,16 +45,21 @@ const state = {
 
     markers: [],
     infoWindow: null,
-    tempMarker: null
+    tempMarker: null,
+    stationsLoadedFromApi: false
 };
+
+const API_BASE_URL = 'http://127.0.0.1:8080/api';
 
 /* ==========================================
  * 视图与导航控制
  * ========================================== */
-function handleLogin(e) {
+async function handleLogin(e) {
     e.preventDefault();
     const role = document.getElementById('login-role').value;
     state.currentUserRole = role;
+
+    await loadStationsFromApi(true);
 
     document.getElementById('login-view').classList.add('hidden-view');
 
@@ -131,6 +136,62 @@ function getStationById(id) {
     return state.stations.find((s) => s.id === id);
 }
 
+function stationToApiPayload(station) {
+    return {
+        station_name: station.name,
+        address: station.address || '',
+        lng: station.lng,
+        lat: station.lat,
+        demand: station.demand,
+        service_time: station.service_time,
+        time_window_start: station.tw_start,
+        time_window_end: station.tw_end,
+        is_depot: station.is_depot
+    };
+}
+
+function normalizeStationFromApi(station) {
+    return {
+        id: station.id,
+        code: station.station_code || '',
+        name: station.station_name,
+        address: station.address || '',
+        lng: Number(station.lng),
+        lat: Number(station.lat),
+        demand: Number(station.demand),
+        service_time: Number(station.service_time),
+        tw_start: station.time_window_start,
+        tw_end: station.time_window_end,
+        is_depot: Boolean(station.is_depot)
+    };
+}
+
+async function loadStationsFromApi(silent = false) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/stations`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const payload = await response.json();
+        if (Array.isArray(payload.stations) && payload.stations.length > 0) {
+            state.stations = payload.stations.map(normalizeStationFromApi);
+            state.stationsLoadedFromApi = true;
+        }
+    } catch (error) {
+        if (!silent) {
+            alert(`站点数据读取失败，将继续使用前端内置数据。\n${error.message}`);
+        }
+    }
+}
+
+function getMapCenter() {
+    const depot = state.stations.find((station) => station.is_depot);
+    if (depot) {
+        return [depot.lng, depot.lat];
+    }
+    return [108.938837, 34.136631];
+}
+
 function checkAMap() {
     if (typeof AMap === 'undefined') {
         alert('高德地图 API 未加载。请检查网络或确认代码中的 KEY 设置正确。');
@@ -146,13 +207,15 @@ function initAdminStationMap() {
     if (!checkAMap()) return;
     if (state.mapStation) {
         state.mapStation.resize();
+        state.mapStation.setCenter(getMapCenter());
+        renderStationMarkers(state.mapStation, true);
         renderStationList();
         return;
     }
 
     state.mapStation = new AMap.Map('station-map-container', {
         zoom: 13,
-        center: [108.938837, 34.136631],
+        center: getMapCenter(),
         viewMode: '2D'
     });
 
@@ -322,7 +385,7 @@ function openStationFormWindow(station, lng, lat, defaultName = '') {
     }
 }
 
-window.saveStation = function saveStation(id) {
+window.saveStation = async function saveStation(id) {
     const data = {
         name: document.getElementById('fm-name').value,
         lng: parseFloat(document.getElementById('fm-lng').value),
@@ -336,12 +399,21 @@ window.saveStation = function saveStation(id) {
 
     if (!data.name) return alert('站点名称不能为空');
 
-    if (id) {
-        const idx = state.stations.findIndex((s) => s.id === id);
-        if (idx > -1) state.stations[idx] = { ...state.stations[idx], ...data };
-    } else {
-        const newId = state.stations.length > 0 ? Math.max(...state.stations.map((s) => s.id)) + 1 : 1;
-        state.stations.push({ id: newId, ...data });
+    try {
+        const request = {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(stationToApiPayload(data))
+        };
+        const endpoint = id ? `${API_BASE_URL}/stations/${id}` : `${API_BASE_URL}/stations`;
+        const response = await fetch(endpoint, request);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        await loadStationsFromApi(true);
+    } catch (error) {
+        alert(`站点保存失败，请确认后端 API 已启动。\n${error.message}`);
+        return;
     }
 
     state.infoWindow.close();
@@ -351,12 +423,21 @@ window.saveStation = function saveStation(id) {
     }
     renderStationMarkers(state.mapStation, true);
     renderStationList();
-    alert('保存成功！数据已更新至内存。');
+    alert('保存成功！数据已写入数据库。');
 };
 
-window.deleteStation = function deleteStation(id) {
+window.deleteStation = async function deleteStation(id) {
     if (!confirm('确定要删除此站点吗？')) return;
-    state.stations = state.stations.filter((s) => s.id !== id);
+    try {
+        const response = await fetch(`${API_BASE_URL}/stations/${id}`, { method: 'DELETE' });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        await loadStationsFromApi(true);
+    } catch (error) {
+        alert(`删除失败，请确认后端 API 已启动。\n${error.message}`);
+        return;
+    }
     state.infoWindow.close();
     renderStationMarkers(state.mapStation, true);
     renderStationList();
@@ -374,7 +455,7 @@ function initAdminRouteMap() {
 
     state.mapRoute = new AMap.Map('route-map-container', {
         zoom: 13,
-        center: [108.938837, 34.136631],
+        center: getMapCenter(),
         viewMode: '2D'
     });
 
@@ -467,7 +548,7 @@ function initUserMap() {
 
     state.mapUser = new AMap.Map('user-map-container', {
         zoom: 13,
-        center: [108.938837, 34.136631],
+        center: getMapCenter(),
         viewMode: '2D'
     });
 
