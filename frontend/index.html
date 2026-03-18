@@ -3,399 +3,359 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>校园通勤车系统</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <title>校园通勤车调度系统 (VRPTW)</title>
+    
+    <!-- 引入 Tailwind CSS (用于现代响应式布局) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 FontAwesome 图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <link rel="stylesheet" href="./style.css">
+
+    <!-- ========================================== -->
+    <!--            高德地图 API 配置部分            -->
+    <!-- ========================================== -->
+    <script>
+        // 【必填】配置高德地图安全密钥
+        window._AMapSecurityConfig = {
+            securityJsCode: '5974820d929a7e1c7fa1fe29077ad58f',
+        }
+    </script>
+    <!-- 【必填】配置高德地图 API Key -->
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=8672b1491decd7c9fc8e832fdb3eb953&plugin=AMap.PlaceSearch,AMap.AutoComplete"></script>
 </head>
-<body>
-    <div class="app-shell">
-        <section class="view view-active" id="login-view" aria-label="登录页面">
-            <div class="login-layout">
-                <div class="hero-panel surface">
-                    <h1>校园通勤车系统</h1>
-                    <p class="hero-copy">
-                        面向高校教师通勤场景的智能调度平台，围绕带硬时间窗的车辆路径问题进行调度求解、
-                        路径展示与运行管理。
-                    </p>
-                    <div class="hero-metrics">
-                        <article class="metric-card">
-                            <span class="metric-value">6</span>
-                            <span class="metric-label">通勤站点</span>
-                        </article>
-                        <article class="metric-card">
-                            <span class="metric-value">2</span>
-                            <span class="metric-label">调度车辆</span>
-                        </article>
-                        <article class="metric-card">
-                            <span class="metric-value">07:50</span>
-                            <span class="metric-label">最晚到校</span>
-                        </article>
-                    </div>
+<body class="h-screen w-screen flex flex-col">
+
+    <!-- ========================================== -->
+    <!--                1. 登录页面                 -->
+    <!-- ========================================== -->
+    <div id="login-view" class="h-full w-full flex items-center justify-center bg-gray-100 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?ixlib=rb-1.2.1&auto=format&fit=crop&w=1920&q=80');">
+        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+        <div class="relative bg-white p-8 rounded-xl shadow-2xl w-96 z-10">
+            <div class="text-center mb-8">
+                <i class="fa-solid fa-bus text-4xl text-blue-600 mb-2"></i>
+                <h1 class="text-2xl font-bold text-gray-800">校园通勤车调度系统</h1>
+                <p class="text-sm text-gray-500 mt-1">VRPTW 智能路径规划</p>
+            </div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">角色</label>
+                    <select id="login-role" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                        <option value="admin">管理员 (调度员)</option>
+                        <option value="user">教职工 (普通用户)</option>
+                    </select>
                 </div>
-
-                <div class="login-panel surface">
-                    <div class="panel-header">
-                        <span class="badge">登录入口</span>
-                        <h2>进入系统</h2>
-                        <p>根据角色进入管理员界面或教师用户界面。</p>
-                    </div>
-
-                    <form id="login-form" class="login-form">
-                        <label class="field">
-                            <span>用户名</span>
-                            <input id="username" name="username" type="text" placeholder="请输入用户名" required>
-                        </label>
-
-                        <label class="field">
-                            <span>密码</span>
-                            <input id="password" name="password" type="password" placeholder="请输入密码" required>
-                        </label>
-
-                        <div class="role-picker">
-                            <span>角色</span>
-                            <div class="segmented-control">
-                                <label class="segment">
-                                    <input type="radio" name="role" value="admin" checked>
-                                    <span>管理员</span>
-                                </label>
-                                <label class="segment">
-                                    <input type="radio" name="role" value="user">
-                                    <span>用户</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <button class="primary-button" type="submit">登录系统</button>
-                    </form>
-
-                    <div class="quick-tip">
-                        <strong>演示账号：</strong>
-                        <span>管理员 `admin` / 用户 `teacher`，密码任意。</span>
-                    </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">账号</label>
+                    <input type="text" id="login-username" value="admin" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500" placeholder="请输入账号">
                 </div>
-            </div>
-        </section>
-
-        <section class="view dashboard-view" id="admin-view" aria-label="管理员界面">
-            <div class="dashboard-shell">
-                <aside class="sidebar surface admin-accent">
-                    <div>
-                        <div class="brand-block">
-                            <h2>管理员端</h2>
-                            <p>车辆调度与数据管理</p>
-                        </div>
-
-                        <nav class="nav-list">
-                            <button class="nav-item nav-item-active" type="button" data-admin-tab="overview">系统概览</button>
-                            <button class="nav-item" type="button" data-admin-tab="vehicles">车辆管理</button>
-                            <button class="nav-item" type="button" data-admin-tab="stations">站点管理</button>
-                            <button class="nav-item" type="button" data-admin-tab="schedule">调度结果</button>
-                            <button class="nav-item" type="button" data-admin-tab="users">用户管理</button>
-                        </nav>
-                    </div>
-
-                    <button class="ghost-button" type="button" data-action="logout">退出登录</button>
-                </aside>
-
-                <main class="dashboard-main">
-                    <header class="topbar surface">
-                        <div>
-                            <h1>调度总览</h1>
-                            <p class="page-subtitle">查看并维护车辆、站点和调度结果。</p>
-                        </div>
-                    </header>
-
-                    <section class="admin-tab admin-tab-active" id="admin-overview">
-                        <div class="grid-cards">
-                            <article class="stat-card surface">
-                                <span class="stat-label">今日车辆</span>
-                                <strong>2</strong>
-                                <p>全部车辆已完成可行调度</p>
-                            </article>
-                            <article class="stat-card surface">
-                                <span class="stat-label">服务站点</span>
-                                <strong>6</strong>
-                                <p>覆盖主要教师通勤上车点</p>
-                            </article>
-                            <article class="stat-card surface">
-                                <span class="stat-label">最优总距离</span>
-                                <strong>11.6 km</strong>
-                                <p>ACO 调度结果已写回数据库</p>
-                            </article>
-                            <article class="stat-card surface">
-                                <span class="stat-label">准时率</span>
-                                <strong>100%</strong>
-                                <p>全部车辆在 07:50 前到校</p>
-                            </article>
-                        </div>
-
-                        <div class="content-grid">
-                            <article class="content-card surface">
-                                <div class="card-heading">
-                                    <div>
-                                        <span class="badge">系统摘要</span>
-                                        <h3>今日调度方案</h3>
-                                    </div>
-                                </div>
-                                <ul class="summary-list">
-                                    <li>车辆 `BUS-01` 负责南长安街壹号、智慧新城方向通勤任务。</li>
-                                    <li>车辆 `BUS-02` 负责金地常宁府、任家寨、杜永村方向通勤任务。</li>
-                                    <li>所有车辆终点站均为西安财经大学长安校区东大门。</li>
-                                </ul>
-                            </article>
-
-                            <article class="content-card surface">
-                                <div class="card-heading">
-                                    <div>
-                                        <span class="badge">关键约束</span>
-                                        <h3>运行规则</h3>
-                                    </div>
-                                </div>
-                                <ul class="summary-list compact">
-                                    <li>终点站硬时间窗：07:30 - 07:50</li>
-                                    <li>所有车辆必须在 07:50 前到达学校</li>
-                                    <li>车辆容量与站点需求同步约束</li>
-                                </ul>
-                            </article>
-                        </div>
-                    </section>
-
-                    <section class="admin-tab" id="admin-vehicles">
-                        <div class="table-card surface">
-                            <div class="card-heading">
-                                <div>
-                                    <span class="badge">车辆管理</span>
-                                    <h3>通勤车列表</h3>
-                                </div>
-                                <div class="toolbar">
-                                    <input class="search-input" id="vehicle-search" type="search" placeholder="搜索车辆编号或车牌">
-                                    <button class="secondary-button" type="button" data-crud-create="vehicles">新增车辆</button>
-                                </div>
-                            </div>
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>车辆编号</th>
-                                        <th>车牌号</th>
-                                        <th>容量</th>
-                                        <th>司机</th>
-                                        <th>最大运行时长</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="vehicle-table-body"></tbody>
-                            </table>
-                        </div>
-                    </section>
-
-                    <section class="admin-tab" id="admin-stations">
-                        <div class="table-card surface">
-                            <div class="card-heading">
-                                <div>
-                                    <span class="badge">站点管理</span>
-                                    <h3>通勤站点列表</h3>
-                                </div>
-                                <div class="toolbar">
-                                    <input class="search-input" id="station-search" type="search" placeholder="搜索站点名称">
-                                    <button class="secondary-button" type="button" data-crud-create="stations">新增站点</button>
-                                </div>
-                            </div>
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>站点名称</th>
-                                        <th>需求人数</th>
-                                        <th>服务时长</th>
-                                        <th>时间窗</th>
-                                        <th>类型</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="station-table-body"></tbody>
-                            </table>
-                        </div>
-                    </section>
-
-                    <section class="admin-tab" id="admin-schedule">
-                        <div class="table-card surface">
-                            <div class="card-heading">
-                                <div>
-                                    <span class="badge">调度结果</span>
-                                    <h3>车辆路径结果表</h3>
-                                </div>
-                                <div class="toolbar">
-                                    <input class="search-input" id="schedule-search" type="search" placeholder="搜索车辆或站点">
-                                    <button class="secondary-button" type="button" data-crud-create="schedule">新增记录</button>
-                                    <button class="secondary-button" type="button" data-action="open-modal">查看写回摘要</button>
-                                </div>
-                            </div>
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>vehicle_id</th>
-                                        <th>station_id</th>
-                                        <th>visit_order</th>
-                                        <th>arrival_time</th>
-                                        <th>departure_time</th>
-                                        <th>feasible_flag</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="schedule-table-body"></tbody>
-                            </table>
-                        </div>
-                    </section>
-
-                    <section class="admin-tab" id="admin-users">
-                        <div class="content-grid">
-                            <article class="content-card surface">
-                                <div class="card-heading">
-                                    <div>
-                                        <span class="badge">用户管理</span>
-                                        <h3>系统角色</h3>
-                                    </div>
-                                </div>
-                                <div class="role-cards">
-                                    <div class="mini-card">
-                                        <strong>管理员</strong>
-                                        <p>维护车辆、站点与调度结果。</p>
-                                    </div>
-                                    <div class="mini-card">
-                                        <strong>教师用户</strong>
-                                        <p>查看本人通勤路线与到站时间。</p>
-                                    </div>
-                                </div>
-                            </article>
-
-                            <article class="content-card surface">
-                                <div class="card-heading">
-                                    <div>
-                                        <span class="badge">安全说明</span>
-                                        <h3>权限控制</h3>
-                                    </div>
-                                </div>
-                                <p class="body-copy">
-                                    管理员界面支持调度总览、数据维护与结果核查；普通用户界面仅提供查询与查看权限。
-                                </p>
-                            </article>
-                        </div>
-                    </section>
-                </main>
-            </div>
-        </section>
-
-        <section class="view dashboard-view" id="user-view" aria-label="用户界面">
-            <div class="dashboard-shell user-shell">
-                <aside class="sidebar surface user-accent">
-                    <div>
-                        <div class="brand-block">
-                            <h2>今日通勤</h2>
-                            <p>查看个人路线与到站信息</p>
-                        </div>
-
-                        <div class="route-preview">
-                            <p class="route-title">推荐乘车线路</p>
-                            <strong>南长安街壹号 → 智慧新城 → 学校东大门</strong>
-                        </div>
-                    </div>
-
-                    <button class="ghost-button" type="button" data-action="logout">退出登录</button>
-                </aside>
-
-                <main class="dashboard-main">
-                    <header class="topbar surface">
-                        <div>
-                            <h1>用户界面</h1>
-                            <p class="page-subtitle">查看个人通勤路线与到站时间。</p>
-                        </div>
-                        <div class="status-pill success-pill">
-                            <span class="status-dot"></span>
-                            当前方案可行
-                        </div>
-                    </header>
-
-                    <div class="grid-cards">
-                        <article class="stat-card surface user-stat">
-                            <span class="stat-label">上车站点</span>
-                            <strong>南长安街壹号</strong>
-                            <p>建议 07:03 前到达候车点</p>
-                        </article>
-                        <article class="stat-card surface user-stat">
-                            <span class="stat-label">预计到校</span>
-                            <strong>07:30</strong>
-                            <p>满足学校到达时间要求</p>
-                        </article>
-                        <article class="stat-card surface user-stat">
-                            <span class="stat-label">服务状态</span>
-                            <strong>正常</strong>
-                            <p>调度方案已生成并可查看</p>
-                        </article>
-                    </div>
-
-                    <div class="content-grid user-grid">
-                        <article class="content-card surface">
-                            <div class="card-heading">
-                                <div>
-                                    <span class="badge">我的通勤路线</span>
-                                    <h3>今日行程</h3>
-                                </div>
-                            </div>
-                            <ol class="timeline" id="user-route-timeline"></ol>
-                        </article>
-
-                        <article class="content-card surface">
-                            <div class="card-heading">
-                                <div>
-                                    <span class="badge">调度信息</span>
-                                    <h3>运行详情</h3>
-                                </div>
-                            </div>
-                            <div class="detail-panel" id="user-detail-panel"></div>
-                        </article>
-                    </div>
-                </main>
-            </div>
-        </section>
-    </div>
-
-    <div class="modal-backdrop" id="modal-backdrop" aria-hidden="true">
-        <div class="modal surface" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-            <div class="modal-header">
-                <div>
-                    <span class="badge">写回结果</span>
-                    <h3 id="modal-title">数据库写回摘要</h3>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">密码</label>
+                    <input type="password" id="login-password" value="123456" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500" placeholder="请输入密码">
                 </div>
-                <button class="icon-button" type="button" data-action="close-modal" aria-label="关闭弹窗">×</button>
-            </div>
-            <div class="modal-content">
-                <p>本次蚁群算法调度结果已成功写回 `schedule` 表。</p>
-                <ul class="summary-list compact">
-                    <li>共写入 7 条调度记录</li>
-                    <li>全部记录 `feasible_flag = 1`</li>
-                    <li>可直接供后续 Web 接口与页面展示使用</li>
-                </ul>
-            </div>
-            <div class="modal-actions">
-                <button class="primary-button" type="button" data-action="close-modal">知道了</button>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition duration-200">
+                    登 录
+                </button>
+            </form>
+            <div class="mt-4 text-xs text-gray-400 text-center">
+                测试账号: admin/123456 或 user/123456
             </div>
         </div>
     </div>
 
-    <div class="modal-backdrop" id="crud-modal-backdrop" aria-hidden="true">
-        <div class="modal surface form-modal" role="dialog" aria-modal="true" aria-labelledby="crud-modal-title">
-            <div class="modal-header">
-                <div>
-                    <span class="badge" id="crud-modal-badge">数据维护</span>
-                    <h3 id="crud-modal-title">新增数据</h3>
-                </div>
-                <button class="icon-button" type="button" data-action="close-crud-modal" aria-label="关闭弹窗">×</button>
+    <!-- ========================================== -->
+    <!--               2. 管理员系统界面              -->
+    <!-- ========================================== -->
+    <div id="admin-view" class="h-full w-full flex hidden-view">
+        <!-- 侧边栏 -->
+        <div class="w-64 bg-gray-900 text-white flex flex-col h-full shadow-lg">
+            <div class="p-5 flex items-center space-x-3 border-b border-gray-700">
+                <i class="fa-solid fa-bus-simple text-blue-400 text-2xl"></i>
+                <span class="text-xl font-bold tracking-wider">智能调度台</span>
             </div>
-            <form id="crud-form" class="crud-form"></form>
+            <nav class="flex-1 py-4 overflow-y-auto">
+                <a href="#" onclick="switchAdminTab('admin-dashboard')" class="nav-item active flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition">
+                    <i class="fa-solid fa-chart-line w-6"></i> <span>系统概览</span>
+                </a>
+                <a href="#" onclick="switchAdminTab('admin-stations')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition">
+                    <i class="fa-solid fa-map-location-dot w-6"></i> <span>地图站点管理</span>
+                </a>
+                <a href="#" onclick="switchAdminTab('admin-vehicles')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition">
+                    <i class="fa-solid fa-car w-6"></i> <span>车辆管理</span>
+                </a>
+                <a href="#" onclick="switchAdminTab('admin-routes')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition">
+                    <i class="fa-solid fa-route w-6"></i> <span>调度结果展示</span>
+                </a>
+                <a href="#" onclick="switchAdminTab('admin-users')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition">
+                    <i class="fa-solid fa-users w-6"></i> <span>教职工管理</span>
+                </a>
+            </nav>
+            <div class="p-4 border-t border-gray-700 text-sm">
+                <div class="flex items-center text-gray-400">
+                    <i class="fa-solid fa-circle text-green-500 text-[10px] mr-2"></i> 调度引擎已就绪
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧主内容区 -->
+        <div class="flex-1 flex flex-col bg-gray-100 overflow-hidden">
+            <!-- 顶部栏 -->
+            <header class="bg-white h-16 shadow-sm flex items-center justify-between px-6 z-10">
+                <h2 id="admin-header-title" class="text-xl font-semibold text-gray-800">系统概览</h2>
+                <div class="flex items-center space-x-4">
+                    <span class="text-gray-600"><i class="fa-solid fa-user-shield mr-1"></i> 管理员 (Admin)</span>
+                    <button onclick="logout()" class="text-red-500 hover:text-red-700 px-3 py-1 rounded border border-red-500 hover:bg-red-50 transition">退出登录</button>
+                </div>
+            </header>
+
+            <!-- 内容区容器 -->
+            <main class="flex-1 overflow-y-auto p-6">
+                
+                <!-- Tab: 系统概览 -->
+                <div id="admin-dashboard" class="admin-tab-content space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center">
+                            <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
+                                <i class="fa-solid fa-map-pin text-xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-sm">总站点数</p>
+                                <p class="text-2xl font-bold" id="dash-station-count">6</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center">
+                            <div class="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+                                <i class="fa-solid fa-car text-xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-sm">可用车辆</p>
+                                <p class="text-2xl font-bold">2</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center">
+                            <div class="p-3 rounded-full bg-yellow-100 text-yellow-600 mr-4">
+                                <i class="fa-solid fa-users text-xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-sm">今日乘车需求</p>
+                                <p class="text-2xl font-bold" id="dash-demand-count">20</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center">
+                            <div class="p-3 rounded-full bg-purple-100 text-purple-600 mr-4">
+                                <i class="fa-solid fa-check-circle text-xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-sm">调度状态</p>
+                                <p class="text-xl font-bold text-green-500">已规划</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                        <h3 class="text-lg font-bold mb-4">使用说明</h3>
+                        <p class="text-gray-600 mb-2">1. 在【地图站点管理】中维护校园班车的真实停靠站点、时间窗（如 07:00-07:15）及上车人数。</p>
+                        <p class="text-gray-600 mb-2">2. 后端 VRPTW 算法将基于真实路网距离矩阵生成最优路线（原型使用模拟结果）。</p>
+                        <p class="text-gray-600">3. 在【调度结果展示】中查看多辆车的行驶轨迹和时刻表。</p>
+                    </div>
+                </div>
+
+                <!-- Tab: 地图站点管理 -->
+                <div id="admin-stations" class="admin-tab-content hidden-view h-full flex flex-col">
+                    <div class="mb-4 flex space-x-2">
+                        <div class="relative flex-1 max-w-md">
+                            <input type="text" id="poi-search-input" class="w-full pl-10 pr-4 py-2 border rounded shadow-sm focus:outline-none focus:border-blue-500" placeholder="搜索真实地点添加站点 (例如: 金地常宁府)">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        <button class="bg-gray-100 border text-gray-700 px-4 py-2 rounded hover:bg-gray-200">
+                            <i class="fa-solid fa-hand-pointer mr-1"></i> 直接点击地图新增
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1 flex gap-4 h-[calc(100vh-200px)]">
+                        <!-- 地图容器 -->
+                        <div id="station-map-container" class="flex-1 bg-white rounded-lg shadow border relative">
+                            <!-- 高德地图挂载点 -->
+                        </div>
+                        <!-- 站点列表/数据表 -->
+                        <div class="w-80 bg-white rounded-lg shadow border flex flex-col">
+                            <div class="p-4 border-b bg-gray-50 rounded-t-lg">
+                                <h3 class="font-bold">已保存站点列表</h3>
+                            </div>
+                            <div class="p-2 overflow-y-auto flex-1" id="station-list-container">
+                                <!-- JS 动态渲染列表 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: 车辆管理 (静态展示) -->
+                <div id="admin-vehicles" class="admin-tab-content hidden-view">
+                    <div class="bg-white rounded-lg shadow-sm border p-6">
+                        <div class="flex justify-between mb-4">
+                            <h3 class="font-bold text-lg">车队管理</h3>
+                            <button class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"><i class="fa-solid fa-plus mr-1"></i> 新增车辆</button>
+                        </div>
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">车牌号</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">容量(人)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">起始车场</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">状态</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">陕A·12345</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">20</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">西安财经大学东门</td>
+                                    <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">可用</span></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 cursor-pointer">编辑</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">陕A·67890</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">15</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">西安财经大学东门</td>
+                                    <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">可用</span></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 cursor-pointer">编辑</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: 调度结果展示 -->
+                <div id="admin-routes" class="admin-tab-content hidden-view h-full flex flex-col">
+                    <div class="mb-4 bg-white p-4 rounded-lg shadow-sm border flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-gray-800">今日通勤路线方案 (VRPTW 结果)</h3>
+                            <p class="text-sm text-gray-500">算法执行耗时: 1.2s | 总行驶距离: 18.5km | 约束违规: 0</p>
+                        </div>
+                        <button class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 shadow flex items-center">
+                            <i class="fa-solid fa-play mr-2"></i> 重新执行调度
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1 flex gap-4 h-[calc(100vh-220px)]">
+                        <!-- 结果地图 -->
+                        <div id="route-map-container" class="flex-1 bg-white rounded-lg shadow border relative">
+                            <!-- 高德地图挂载点 -->
+                        </div>
+                        
+                        <!-- 路线详情侧边栏 -->
+                        <div class="w-96 bg-white rounded-lg shadow border flex flex-col overflow-hidden">
+                            <div class="p-4 border-b bg-gray-50">
+                                <h3 class="font-bold">车辆路线时刻表</h3>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-4 space-y-6" id="route-details-container">
+                                <!-- 动态渲染路线详情 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: 用户管理 (静态展示) -->
+                <div id="admin-users" class="admin-tab-content hidden-view">
+                    <div class="bg-white rounded-lg shadow-sm border p-6 text-center text-gray-500 py-20">
+                        <i class="fa-solid fa-users-cog text-4xl mb-4 text-gray-300"></i>
+                        <p>教职工基础信息管理模块（待对接学校人事系统接口）</p>
+                    </div>
+                </div>
+
+            </main>
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!--                3. 用户系统界面                -->
+    <!-- ========================================== -->
+    <div id="user-view" class="h-full w-full flex flex-col bg-gray-100 hidden-view overflow-y-auto">
+        <!-- 用户顶部导航 -->
+        <header class="bg-blue-600 text-white shadow-md">
+            <div class="container mx-auto px-4 h-16 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-bus text-2xl"></i>
+                    <span class="text-xl font-bold">我的通勤班车</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span><i class="fa-solid fa-user mr-1"></i> 张老师</span>
+                    <button onclick="logout()" class="text-blue-100 hover:text-white px-3 py-1 border border-blue-400 rounded hover:bg-blue-700 transition">退出</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="container mx-auto px-4 py-8 flex-1 flex flex-col md:flex-row gap-6">
+            <!-- 左侧内容：我的行程 -->
+            <div class="flex-1 flex flex-col gap-6">
+                <!-- 欢迎卡片 -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">早上好，张老师！</h2>
+                    <p class="text-gray-600">您的今日通勤行程已安排妥当。请提前到达站点等候。</p>
+                </div>
+
+                <!-- 行程详情卡片 -->
+                <div class="bg-white rounded-xl shadow-sm p-6 flex-1">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-ticket text-blue-500 mr-2"></i>今日电子车票</h3>
+                        <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">状态: 准点运行</span>
+                    </div>
+
+                    <div class="border rounded-lg p-5 bg-gray-50 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-16 h-16 bg-blue-100 rounded-bl-full z-0"></div>
+                        <i class="fa-solid fa-bus absolute top-2 right-3 text-blue-500 text-xl z-10"></i>
+                        
+                        <div class="relative z-10">
+                            <p class="text-sm text-gray-500 mb-1">乘坐车辆</p>
+                            <p class="text-xl font-bold text-gray-800 mb-4">通勤 1 号线 (陕A·12345)</p>
+
+                            <div class="flex items-center justify-between border-b border-dashed border-gray-300 pb-4 mb-4">
+                                <div class="text-center">
+                                    <p class="text-xs text-gray-500">上车站点</p>
+                                    <p class="font-bold text-lg text-blue-600">金地常宁府</p>
+                                    <p class="text-sm font-semibold">预计 07:12</p>
+                                </div>
+                                <div class="flex-1 px-4 flex items-center justify-center text-gray-400">
+                                    <div class="border-t border-gray-300 flex-1 border-dashed"></div>
+                                    <i class="fa-solid fa-chevron-right mx-2"></i>
+                                    <div class="border-t border-gray-300 flex-1 border-dashed"></div>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-xs text-gray-500">下车站点</p>
+                                    <p class="font-bold text-lg text-gray-800">西安财大东门</p>
+                                    <p class="text-sm font-semibold">预计 07:55</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-between text-sm">
+                                <div><span class="text-gray-500">要求时间窗:</span> 07:10 - 07:20</div>
+                                <div><span class="text-gray-500">座位号:</span> 自由落座</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8">
+                        <h4 class="font-bold mb-4">路线经停点</h4>
+                        <div class="space-y-4 pl-2 border-l-2 border-blue-200 ml-2" id="user-route-stops">
+                            <!-- 动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧内容：实时地图 -->
+            <div class="w-full md:w-[500px] h-[600px] bg-white rounded-xl shadow-sm overflow-hidden flex flex-col border border-gray-200">
+                <div class="p-4 border-b bg-gray-50">
+                    <h3 class="font-bold"><i class="fa-solid fa-map-location text-blue-500 mr-2"></i>我的通勤地图</h3>
+                </div>
+                <div id="user-map-container" class="flex-1 w-full relative">
+                    <!-- 用户高德地图挂载点 -->
+                </div>
+            </div>
+        </main>
+    </div>
     <script src="./script.js"></script>
 </body>
 </html>

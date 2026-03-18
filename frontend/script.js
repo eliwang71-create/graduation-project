@@ -1,484 +1,540 @@
+/**
+ * 核心数据状态 (Mock 数据基于真实需求)
+ */
 const state = {
-    vehicles: [
-        { id: 1, code: "BUS-01", plate: "陕A10001", capacity: 18, driver: "张师傅", maxRunMinutes: 120 },
-        { id: 2, code: "BUS-02", plate: "陕A10002", capacity: 20, driver: "李师傅", maxRunMinutes: 120 }
-    ],
+    currentUserRole: null, // 'admin' 或 'user'
+    mapStation: null,      // 管理员站点地图实例
+    mapRoute: null,        // 管理员路线地图实例
+    mapUser: null,         // 用户端地图实例
+    placeSearch: null,
+
+    // 初始站点数据 (包含 Depot 和请求节点)
     stations: [
-        { id: 1, name: "金地常宁府", demand: 7, service: 3, windowStart: "06:50", windowEnd: "07:10", type: "上车点" },
-        { id: 2, name: "任家寨", demand: 5, service: 2, windowStart: "06:55", windowEnd: "07:15", type: "上车点" },
-        { id: 3, name: "杜永村", demand: 6, service: 2, windowStart: "07:00", windowEnd: "07:20", type: "上车点" },
-        { id: 4, name: "南长安街壹号", demand: 8, service: 3, windowStart: "07:05", windowEnd: "07:25", type: "上车点" },
-        { id: 5, name: "智慧新城", demand: 7, service: 3, windowStart: "07:10", windowEnd: "07:30", type: "上车点" },
-        { id: 6, name: "西安财经大学长安校区东大门", demand: 0, service: 1, windowStart: "07:30", windowEnd: "07:50", type: "终点站" }
+        { id: 1, name: '西安财经大学长安校区东大门', lng: 108.938837, lat: 34.116631, demand: 0, service_time: 0, tw_start: '06:00', tw_end: '20:00', is_depot: true },
+        { id: 2, name: '金地常宁府', lng: 108.940523, lat: 34.120512, demand: 5, service_time: 2, tw_start: '07:10', tw_end: '07:20', is_depot: false },
+        { id: 3, name: '任家寨', lng: 108.935511, lat: 34.125533, demand: 3, service_time: 2, tw_start: '07:15', tw_end: '07:25', is_depot: false },
+        { id: 4, name: '杜永村', lng: 108.945522, lat: 34.135544, demand: 4, service_time: 2, tw_start: '07:20', tw_end: '07:30', is_depot: false },
+        { id: 5, name: '南长安街壹号', lng: 108.942533, lat: 34.145555, demand: 6, service_time: 2, tw_start: '07:30', tw_end: '07:40', is_depot: false },
+        { id: 6, name: '智慧新城', lng: 108.925544, lat: 34.155566, demand: 2, service_time: 2, tw_start: '07:40', tw_end: '07:50', is_depot: false },
     ],
-    schedule: [
-        { scheduleCode: "ACO20260317V1O1", vehicleId: 1, stationId: 4, visitOrder: 1, arrivalTime: "2026-03-17 07:05:00", departureTime: "2026-03-17 07:08:00", feasibleFlag: 1 },
-        { scheduleCode: "ACO20260317V1O2", vehicleId: 1, stationId: 5, visitOrder: 2, arrivalTime: "2026-03-17 07:13:00", departureTime: "2026-03-17 07:16:00", feasibleFlag: 1 },
-        { scheduleCode: "ACO20260317V1O3", vehicleId: 1, stationId: 6, visitOrder: 3, arrivalTime: "2026-03-17 07:30:00", departureTime: "2026-03-17 07:31:00", feasibleFlag: 1 },
-        { scheduleCode: "ACO20260317V2O1", vehicleId: 2, stationId: 1, visitOrder: 1, arrivalTime: "2026-03-17 06:50:00", departureTime: "2026-03-17 06:53:00", feasibleFlag: 1 },
-        { scheduleCode: "ACO20260317V2O2", vehicleId: 2, stationId: 2, visitOrder: 2, arrivalTime: "2026-03-17 06:59:00", departureTime: "2026-03-17 07:01:00", feasibleFlag: 1 },
-        { scheduleCode: "ACO20260317V2O3", vehicleId: 2, stationId: 3, visitOrder: 3, arrivalTime: "2026-03-17 07:07:00", departureTime: "2026-03-17 07:09:00", feasibleFlag: 1 },
-        { scheduleCode: "ACO20260317V2O4", vehicleId: 2, stationId: 6, visitOrder: 4, arrivalTime: "2026-03-17 07:30:00", departureTime: "2026-03-17 07:31:00", feasibleFlag: 1 }
+
+    // 模拟 VRPTW 算法调度结果
+    routes: [
+        {
+            id: 'V1', name: '1号线', color: '#3B82F6',
+            path: [1, 2, 3, 6, 1],
+            schedule: [
+                { stationId: 1, arr: '-', dep: '07:08', type: 'depot_start' },
+                { stationId: 2, arr: '07:12', dep: '07:14', type: 'pickup' },
+                { stationId: 3, arr: '07:20', dep: '07:22', type: 'pickup' },
+                { stationId: 6, arr: '07:42', dep: '07:44', type: 'pickup' },
+                { stationId: 1, arr: '07:55', dep: '-', type: 'depot_end' },
+            ]
+        },
+        {
+            id: 'V2', name: '2号线', color: '#10B981',
+            path: [1, 4, 5, 1],
+            schedule: [
+                { stationId: 1, arr: '-', dep: '07:10', type: 'depot_start' },
+                { stationId: 4, arr: '07:22', dep: '07:24', type: 'pickup' },
+                { stationId: 5, arr: '07:33', dep: '07:35', type: 'pickup' },
+                { stationId: 1, arr: '07:50', dep: '-', type: 'depot_end' },
+            ]
+        }
     ],
-    filters: {
-        vehicles: "",
-        stations: "",
-        schedule: ""
-    },
-    crudContext: {
-        type: null,
-        mode: "create",
-        id: null
-    }
+
+    markers: [],
+    infoWindow: null,
+    tempMarker: null
 };
 
-const views = {
-    login: document.getElementById("login-view"),
-    admin: document.getElementById("admin-view"),
-    user: document.getElementById("user-view")
-};
+/* ==========================================
+ * 视图与导航控制
+ * ========================================== */
+function handleLogin(e) {
+    e.preventDefault();
+    const role = document.getElementById('login-role').value;
+    state.currentUserRole = role;
 
-const elements = {
-    modalBackdrop: document.getElementById("modal-backdrop"),
-    crudModalBackdrop: document.getElementById("crud-modal-backdrop"),
-    loginForm: document.getElementById("login-form"),
-    vehicleTableBody: document.getElementById("vehicle-table-body"),
-    stationTableBody: document.getElementById("station-table-body"),
-    scheduleTableBody: document.getElementById("schedule-table-body"),
-    userRouteTimeline: document.getElementById("user-route-timeline"),
-    userDetailPanel: document.getElementById("user-detail-panel"),
-    crudForm: document.getElementById("crud-form"),
-    crudModalTitle: document.getElementById("crud-modal-title"),
-    crudModalBadge: document.getElementById("crud-modal-badge"),
-    vehicleSearch: document.getElementById("vehicle-search"),
-    stationSearch: document.getElementById("station-search"),
-    scheduleSearch: document.getElementById("schedule-search")
-};
+    document.getElementById('login-view').classList.add('hidden-view');
 
-function switchView(targetView) {
-    Object.values(views).forEach((view) => view.classList.remove("view-active"));
-    views[targetView].classList.add("view-active");
-}
-
-function stationNameById(stationId) {
-    const station = state.stations.find((entry) => entry.id === stationId);
-    return station ? station.name : "未知站点";
-}
-
-function nextId(items) {
-    return items.length ? Math.max(...items.map((item) => item.id)) + 1 : 1;
-}
-
-function renderVehicles() {
-    const keyword = state.filters.vehicles.toLowerCase();
-    const rows = state.vehicles
-        .filter((vehicle) =>
-            vehicle.code.toLowerCase().includes(keyword) || vehicle.plate.toLowerCase().includes(keyword))
-        .map((vehicle) => `
-            <tr>
-                <td>${vehicle.code}</td>
-                <td>${vehicle.plate}</td>
-                <td>${vehicle.capacity}</td>
-                <td>${vehicle.driver}</td>
-                <td>${vehicle.maxRunMinutes} 分钟</td>
-                <td>
-                    <div class="table-actions">
-                        <button class="table-action edit" type="button" data-crud-edit="vehicles" data-id="${vehicle.id}">编辑</button>
-                        <button class="table-action delete" type="button" data-crud-delete="vehicles" data-id="${vehicle.id}">删除</button>
-                    </div>
-                </td>
-            </tr>
-        `)
-        .join("");
-
-    elements.vehicleTableBody.innerHTML = rows || `<tr><td colspan="6">暂无匹配车辆</td></tr>`;
-}
-
-function renderStations() {
-    const keyword = state.filters.stations.toLowerCase();
-    const rows = state.stations
-        .filter((station) => station.name.toLowerCase().includes(keyword))
-        .map((station) => `
-            <tr>
-                <td>${station.name}</td>
-                <td>${station.demand}</td>
-                <td>${station.service} 分钟</td>
-                <td>${station.windowStart} - ${station.windowEnd}</td>
-                <td>${station.type}</td>
-                <td>
-                    <div class="table-actions">
-                        <button class="table-action edit" type="button" data-crud-edit="stations" data-id="${station.id}">编辑</button>
-                        <button class="table-action delete" type="button" data-crud-delete="stations" data-id="${station.id}">删除</button>
-                    </div>
-                </td>
-            </tr>
-        `)
-        .join("");
-
-    elements.stationTableBody.innerHTML = rows || `<tr><td colspan="6">暂无匹配站点</td></tr>`;
-}
-
-function renderSchedule() {
-    const keyword = state.filters.schedule.toLowerCase();
-    const rows = state.schedule
-        .filter((item) => `${item.vehicleId}`.includes(keyword) || stationNameById(item.stationId).toLowerCase().includes(keyword))
-        .map((item) => `
-            <tr>
-                <td>${item.vehicleId}</td>
-                <td>${item.stationId}</td>
-                <td>${item.visitOrder}</td>
-                <td>${item.arrivalTime}</td>
-                <td>${item.departureTime}</td>
-                <td>${item.feasibleFlag}</td>
-                <td>
-                    <div class="table-actions">
-                        <button class="table-action edit" type="button" data-crud-edit="schedule" data-id="${item.scheduleCode}">编辑</button>
-                        <button class="table-action delete" type="button" data-crud-delete="schedule" data-id="${item.scheduleCode}">删除</button>
-                    </div>
-                </td>
-            </tr>
-        `)
-        .join("");
-
-    elements.scheduleTableBody.innerHTML = rows || `<tr><td colspan="7">暂无匹配调度记录</td></tr>`;
-}
-
-function renderUserRoute() {
-    const route = state.schedule
-        .filter((item) => item.vehicleId === 1)
-        .sort((a, b) => a.visitOrder - b.visitOrder);
-
-    elements.userRouteTimeline.innerHTML = route.map((item) => `
-        <li>
-            <strong>${item.visitOrder}. ${stationNameById(item.stationId)}</strong>
-            <span>预计到达：${item.arrivalTime.slice(11, 16)}</span>
-            <span>预计离开：${item.departureTime.slice(11, 16)}</span>
-        </li>
-    `).join("");
-
-    elements.userDetailPanel.innerHTML = `
-        <p><strong>乘车车辆：</strong> BUS-01</p>
-        <p><strong>预计总运行时长：</strong> 19 分钟</p>
-        <p><strong>是否可行：</strong> 是</p>
-        <p><strong>终点站：</strong> 西安财经大学长安校区东大门</p>
-    `;
-}
-
-function renderAll() {
-    renderVehicles();
-    renderStations();
-    renderSchedule();
-    renderUserRoute();
-}
-
-function openInfoModal() {
-    elements.modalBackdrop.classList.add("modal-open");
-    elements.modalBackdrop.setAttribute("aria-hidden", "false");
-}
-
-function closeInfoModal() {
-    elements.modalBackdrop.classList.remove("modal-open");
-    elements.modalBackdrop.setAttribute("aria-hidden", "true");
-}
-
-function getCrudItem(type, id) {
-    if (type === "vehicles") {
-        return state.vehicles.find((item) => item.id === Number(id));
+    if (role === 'admin') {
+        document.getElementById('admin-view').classList.remove('hidden-view');
+        switchAdminTab('admin-dashboard');
+    } else {
+        document.getElementById('user-view').classList.remove('hidden-view');
+        initUserMap();
+        renderUserRouteList();
     }
-    if (type === "stations") {
-        return state.stations.find((item) => item.id === Number(id));
-    }
-    return state.schedule.find((item) => item.scheduleCode === id);
 }
 
-function crudTemplate(type, item = {}) {
-    if (type === "vehicles") {
-        return `
-            <div class="crud-grid">
-                <label class="field"><span>车辆编号</span><input name="code" value="${item.code || ""}" required></label>
-                <label class="field"><span>车牌号</span><input name="plate" value="${item.plate || ""}" required></label>
-                <label class="field"><span>容量</span><input name="capacity" type="number" min="1" value="${item.capacity || ""}" required></label>
-                <label class="field"><span>司机</span><input name="driver" value="${item.driver || ""}" required></label>
-                <label class="field"><span>最大运行时长</span><input name="maxRunMinutes" type="number" min="1" value="${item.maxRunMinutes || ""}" required></label>
-            </div>
-            <p class="modal-note">用于管理员端模拟车辆增删查改，后续可替换为真实接口提交。</p>
-            <div class="modal-actions">
-                <button class="secondary-button" type="button" data-action="close-crud-modal">取消</button>
-                <button class="primary-button" type="submit">保存车辆</button>
-            </div>
-        `;
+function logout() {
+    state.currentUserRole = null;
+    document.getElementById('admin-view').classList.add('hidden-view');
+    document.getElementById('user-view').classList.add('hidden-view');
+    document.getElementById('login-view').classList.remove('hidden-view');
+
+    if (state.mapStation) state.mapStation.destroy();
+    if (state.mapRoute) state.mapRoute.destroy();
+    if (state.mapUser) state.mapUser.destroy();
+    state.mapStation = state.mapRoute = state.mapUser = null;
+}
+
+function switchAdminTab(tabId) {
+    document.querySelectorAll('.admin-tab-content').forEach((el) => el.classList.add('hidden-view'));
+    document.getElementById(tabId).classList.remove('hidden-view');
+
+    document.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('active'));
+    if (window.event && window.event.currentTarget) {
+        window.event.currentTarget.classList.add('active');
+    } else {
+        const tabMap = {
+            'admin-dashboard': 0,
+            'admin-stations': 1,
+            'admin-vehicles': 2,
+            'admin-routes': 3,
+            'admin-users': 4
+        };
+        const navItems = document.querySelectorAll('.nav-item');
+        const activeIndex = tabMap[tabId];
+        if (navItems[activeIndex]) {
+            navItems[activeIndex].classList.add('active');
+        }
     }
 
-    if (type === "stations") {
-        return `
-            <div class="crud-grid">
-                <label class="field"><span>站点名称</span><input name="name" value="${item.name || ""}" required></label>
-                <label class="field"><span>需求人数</span><input name="demand" type="number" min="0" value="${item.demand ?? ""}" required></label>
-                <label class="field"><span>服务时长</span><input name="service" type="number" min="0" value="${item.service ?? ""}" required></label>
-                <label class="field"><span>起始时间窗</span><input name="windowStart" type="time" value="${item.windowStart || ""}" required></label>
-                <label class="field"><span>结束时间窗</span><input name="windowEnd" type="time" value="${item.windowEnd || ""}" required></label>
-                <label class="field"><span>类型</span>
-                    <select name="type">
-                        <option value="上车点" ${item.type === "上车点" ? "selected" : ""}>上车点</option>
-                        <option value="终点站" ${item.type === "终点站" ? "selected" : ""}>终点站</option>
-                    </select>
-                </label>
-            </div>
-            <div class="modal-actions">
-                <button class="secondary-button" type="button" data-action="close-crud-modal">取消</button>
-                <button class="primary-button" type="submit">保存站点</button>
-            </div>
-        `;
+    const titles = {
+        'admin-dashboard': '系统概览',
+        'admin-stations': '地图站点管理',
+        'admin-vehicles': '车辆管理',
+        'admin-routes': '调度结果展示',
+        'admin-users': '教职工管理'
+    };
+    document.getElementById('admin-header-title').innerText = titles[tabId];
+
+    if (tabId === 'admin-stations') {
+        setTimeout(initAdminStationMap, 100);
+    } else if (tabId === 'admin-routes') {
+        setTimeout(initAdminRouteMap, 100);
     }
 
-    return `
-        <div class="crud-grid">
-            <label class="field"><span>车辆 ID</span><input name="vehicleId" type="number" min="1" value="${item.vehicleId ?? ""}" required></label>
-            <label class="field"><span>站点 ID</span><input name="stationId" type="number" min="1" value="${item.stationId ?? ""}" required></label>
-            <label class="field"><span>访问顺序</span><input name="visitOrder" type="number" min="1" value="${item.visitOrder ?? ""}" required></label>
-            <label class="field"><span>到达时间</span><input name="arrivalTime" value="${item.arrivalTime || ""}" placeholder="2026-03-17 07:05:00" required></label>
-            <label class="field"><span>离开时间</span><input name="departureTime" value="${item.departureTime || ""}" placeholder="2026-03-17 07:08:00" required></label>
-            <label class="field"><span>可行标记</span>
-                <select name="feasibleFlag">
-                    <option value="1" ${Number(item.feasibleFlag) === 1 ? "selected" : ""}>1</option>
-                    <option value="0" ${Number(item.feasibleFlag) === 0 ? "selected" : ""}>0</option>
-                </select>
-            </label>
+    if (tabId === 'admin-dashboard') {
+        document.getElementById('dash-station-count').innerText = state.stations.length;
+        const totalDemand = state.stations.reduce((sum, s) => sum + parseInt(s.demand || 0, 10), 0);
+        document.getElementById('dash-demand-count').innerText = totalDemand;
+    }
+}
+
+/* ==========================================
+ * 核心辅助函数
+ * ========================================== */
+function getStationById(id) {
+    return state.stations.find((s) => s.id === id);
+}
+
+function checkAMap() {
+    if (typeof AMap === 'undefined') {
+        alert('高德地图 API 未加载。请检查网络或确认代码中的 KEY 设置正确。');
+        return false;
+    }
+    return true;
+}
+
+/* ==========================================
+ * 模块 1: 管理员 - 站点管理地图
+ * ========================================== */
+function initAdminStationMap() {
+    if (!checkAMap()) return;
+    if (state.mapStation) {
+        state.mapStation.resize();
+        renderStationList();
+        return;
+    }
+
+    state.mapStation = new AMap.Map('station-map-container', {
+        zoom: 13,
+        center: [108.938837, 34.136631],
+        viewMode: '2D'
+    });
+
+    state.infoWindow = new AMap.InfoWindow({
+        isCustom: true,
+        offset: new AMap.Pixel(16, -45)
+    });
+
+    state.mapStation.on('click', (e) => {
+        openStationFormWindow(null, e.lnglat.getLng(), e.lnglat.getLat());
+    });
+
+    AMap.plugin(['AMap.PlaceSearch', 'AMap.AutoComplete'], () => {
+        const autoOptions = { input: 'poi-search-input' };
+        const auto = new AMap.AutoComplete(autoOptions);
+        const placeSearch = new AMap.PlaceSearch({ map: state.mapStation });
+
+        auto.on('select', (e) => {
+            placeSearch.setCity(e.poi.adcode);
+            placeSearch.search(e.poi.name, (status, result) => {
+                if (status === 'complete' && result.info === 'OK') {
+                    const poi = result.poiList.pois[0];
+                    openStationFormWindow(null, poi.location.lng, poi.location.lat, poi.name);
+                }
+            });
+        });
+    });
+
+    renderStationMarkers(state.mapStation, true);
+    renderStationList();
+}
+
+function renderStationMarkers(mapInstance, isEditable) {
+    if (state.markers && state.markers.length > 0) {
+        mapInstance.remove(state.markers);
+        state.markers = [];
+    }
+
+    state.stations.forEach((station) => {
+        const isDepot = station.is_depot;
+        const markerContent = `<div style="background-color: ${isDepot ? '#EF4444' : '#3B82F6'}; width: 24px; height: 24px; border-radius: 50%; color: white; text-align: center; line-height: 24px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><i class="fa-solid ${isDepot ? 'fa-building' : 'fa-bus-simple'} text-xs"></i></div>`;
+
+        const marker = new AMap.Marker({
+            position: [station.lng, station.lat],
+            content: markerContent,
+            offset: new AMap.Pixel(-12, -12),
+            extData: station
+        });
+
+        if (isEditable) {
+            marker.on('click', (e) => {
+                const sData = e.target.getExtData();
+                openStationFormWindow(sData);
+            });
+        } else {
+            marker.on('mouseover', (e) => {
+                const sData = e.target.getExtData();
+                const info = new AMap.InfoWindow({
+                    content: `<div class="p-2 text-sm"><b>${sData.name}</b><br>需求: ${sData.demand}人</div>`,
+                    offset: new AMap.Pixel(0, -20)
+                });
+                info.open(mapInstance, marker.getPosition());
+            });
+            marker.on('mouseout', () => {
+                mapInstance.clearInfoWindow();
+            });
+        }
+
+        marker.setMap(mapInstance);
+        state.markers.push(marker);
+    });
+}
+
+function renderStationList() {
+    const container = document.getElementById('station-list-container');
+    let html = '';
+    state.stations.forEach((s) => {
+        html += `
+        <div class="mb-2 p-3 bg-white border rounded shadow-sm hover:border-blue-400 cursor-pointer transition" onclick="focusStation(${s.lng}, ${s.lat})">
+            <div class="flex justify-between items-center mb-1">
+                <span class="font-bold text-gray-800 text-sm truncate w-40" title="${s.name}">${s.name} ${s.is_depot ? '<span class="text-xs bg-red-100 text-red-600 px-1 rounded">车场</span>' : ''}</span>
+                <span class="text-xs text-gray-500">${s.demand} 人</span>
+            </div>
+            <div class="text-xs text-gray-400">
+                时间窗: ${s.tw_start} - ${s.tw_end} | 服务: ${s.service_time}m
+            </div>
         </div>
-        <div class="modal-actions">
-            <button class="secondary-button" type="button" data-action="close-crud-modal">取消</button>
-            <button class="primary-button" type="submit">保存记录</button>
-        </div>
-    `;
+        `;
+    });
+    container.innerHTML = html;
 }
 
-function openCrudModal(type, mode, id = null) {
-    state.crudContext = { type, mode, id };
-    const item = mode === "edit" ? getCrudItem(type, id) : {};
+function focusStation(lng, lat) {
+    if (state.mapStation) {
+        state.mapStation.setCenter([lng, lat]);
+        state.mapStation.setZoom(16);
+    }
+}
 
-    const labels = {
-        vehicles: "车辆管理",
-        stations: "站点管理",
-        schedule: "调度结果"
+function openStationFormWindow(station, lng, lat, defaultName = '') {
+    const isEdit = !!station;
+    const pos = isEdit ? [station.lng, station.lat] : [lng, lat];
+
+    const html = `
+        <div class="custom-info-window relative">
+            <button class="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onclick="state.infoWindow.close()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="font-bold text-gray-800 mb-3 border-b pb-2">${isEdit ? '编辑站点配置 (VRPTW)' : '新增站点'}</h3>
+            <div class="space-y-2">
+                <div>
+                    <label class="text-xs text-gray-500 block">站点名称 (station_name)</label>
+                    <input type="text" id="fm-name" class="form-input-sm" value="${isEdit ? station.name : defaultName}">
+                </div>
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 block">经度 (lng)</label>
+                        <input type="text" id="fm-lng" class="form-input-sm bg-gray-50" readonly value="${pos[0]}">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 block">纬度 (lat)</label>
+                        <input type="text" id="fm-lat" class="form-input-sm bg-gray-50" readonly value="${pos[1]}">
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 block">需求人数 (demand)</label>
+                        <input type="number" id="fm-demand" class="form-input-sm" value="${isEdit ? station.demand : '0'}">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 block">服务时间 (m)</label>
+                        <input type="number" id="fm-serv" class="form-input-sm" value="${isEdit ? station.service_time : '2'}">
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 block">时间窗始 (tw_start)</label>
+                        <input type="time" id="fm-tws" class="form-input-sm" value="${isEdit ? station.tw_start : '07:00'}">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 block">时间窗终 (tw_end)</label>
+                        <input type="time" id="fm-twe" class="form-input-sm" value="${isEdit ? station.tw_end : '08:00'}">
+                    </div>
+                </div>
+                <div class="flex items-center mt-2">
+                    <input type="checkbox" id="fm-depot" class="mr-2" ${isEdit && station.is_depot ? 'checked' : ''}>
+                    <label class="text-sm font-semibold text-gray-700">设为调度起点/终点 (is_depot)</label>
+                </div>
+            </div>
+            <div class="mt-4 flex gap-2">
+                <button onclick="saveStation(${isEdit ? station.id : 'null'})" class="flex-1 bg-blue-600 text-white py-1.5 rounded text-sm hover:bg-blue-700 transition">保存</button>
+                ${isEdit ? `<button onclick="deleteStation(${station.id})" class="flex-1 bg-red-100 text-red-600 py-1.5 rounded text-sm hover:bg-red-200 transition">删除</button>` : ''}
+            </div>
+        </div>
+    `;
+
+    state.infoWindow.setContent(html);
+    state.infoWindow.open(state.mapStation, pos);
+
+    if (!isEdit) {
+        if (state.tempMarker) state.mapStation.remove(state.tempMarker);
+        state.tempMarker = new AMap.Marker({
+            position: pos,
+            icon: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png'
+        });
+        state.tempMarker.setMap(state.mapStation);
+    }
+}
+
+window.saveStation = function saveStation(id) {
+    const data = {
+        name: document.getElementById('fm-name').value,
+        lng: parseFloat(document.getElementById('fm-lng').value),
+        lat: parseFloat(document.getElementById('fm-lat').value),
+        demand: parseInt(document.getElementById('fm-demand').value, 10),
+        service_time: parseInt(document.getElementById('fm-serv').value, 10),
+        tw_start: document.getElementById('fm-tws').value,
+        tw_end: document.getElementById('fm-twe').value,
+        is_depot: document.getElementById('fm-depot').checked
     };
 
-    elements.crudModalBadge.textContent = labels[type];
-    elements.crudModalTitle.textContent = mode === "create" ? "新增数据" : "编辑数据";
-    elements.crudForm.innerHTML = crudTemplate(type, item);
-    elements.crudModalBackdrop.classList.add("modal-open");
-    elements.crudModalBackdrop.setAttribute("aria-hidden", "false");
-}
+    if (!data.name) return alert('站点名称不能为空');
 
-function closeCrudModal() {
-    elements.crudModalBackdrop.classList.remove("modal-open");
-    elements.crudModalBackdrop.setAttribute("aria-hidden", "true");
-    elements.crudForm.innerHTML = "";
-    state.crudContext = { type: null, mode: "create", id: null };
-}
-
-function createVehicle(payload) {
-    state.vehicles.push({
-        id: nextId(state.vehicles),
-        code: payload.code,
-        plate: payload.plate,
-        capacity: Number(payload.capacity),
-        driver: payload.driver,
-        maxRunMinutes: Number(payload.maxRunMinutes)
-    });
-}
-
-function updateVehicle(id, payload) {
-    const vehicle = getCrudItem("vehicles", id);
-    if (!vehicle) return;
-    vehicle.code = payload.code;
-    vehicle.plate = payload.plate;
-    vehicle.capacity = Number(payload.capacity);
-    vehicle.driver = payload.driver;
-    vehicle.maxRunMinutes = Number(payload.maxRunMinutes);
-}
-
-function createStation(payload) {
-    state.stations.push({
-        id: nextId(state.stations),
-        name: payload.name,
-        demand: Number(payload.demand),
-        service: Number(payload.service),
-        windowStart: payload.windowStart,
-        windowEnd: payload.windowEnd,
-        type: payload.type
-    });
-}
-
-function updateStation(id, payload) {
-    const station = getCrudItem("stations", id);
-    if (!station) return;
-    station.name = payload.name;
-    station.demand = Number(payload.demand);
-    station.service = Number(payload.service);
-    station.windowStart = payload.windowStart;
-    station.windowEnd = payload.windowEnd;
-    station.type = payload.type;
-}
-
-function createSchedule(payload) {
-    const vehicleId = Number(payload.vehicleId);
-    const visitOrder = Number(payload.visitOrder);
-    state.schedule.push({
-        scheduleCode: `MANUALV${vehicleId}O${visitOrder}${Date.now()}`,
-        vehicleId,
-        stationId: Number(payload.stationId),
-        visitOrder,
-        arrivalTime: payload.arrivalTime,
-        departureTime: payload.departureTime,
-        feasibleFlag: Number(payload.feasibleFlag)
-    });
-}
-
-function updateSchedule(id, payload) {
-    const record = getCrudItem("schedule", id);
-    if (!record) return;
-    record.vehicleId = Number(payload.vehicleId);
-    record.stationId = Number(payload.stationId);
-    record.visitOrder = Number(payload.visitOrder);
-    record.arrivalTime = payload.arrivalTime;
-    record.departureTime = payload.departureTime;
-    record.feasibleFlag = Number(payload.feasibleFlag);
-}
-
-function deleteItem(type, id) {
-    if (type === "vehicles") {
-        state.vehicles = state.vehicles.filter((item) => item.id !== Number(id));
-    } else if (type === "stations") {
-        state.stations = state.stations.filter((item) => item.id !== Number(id));
+    if (id) {
+        const idx = state.stations.findIndex((s) => s.id === id);
+        if (idx > -1) state.stations[idx] = { ...state.stations[idx], ...data };
     } else {
-        state.schedule = state.schedule.filter((item) => item.scheduleCode !== id);
-    }
-    renderAll();
-}
-
-function handleCrudSubmit(event) {
-    event.preventDefault();
-    const formData = new FormData(elements.crudForm);
-    const payload = Object.fromEntries(formData.entries());
-    const { type, mode, id } = state.crudContext;
-
-    if (type === "vehicles") {
-        mode === "create" ? createVehicle(payload) : updateVehicle(id, payload);
-    } else if (type === "stations") {
-        mode === "create" ? createStation(payload) : updateStation(id, payload);
-    } else if (type === "schedule") {
-        mode === "create" ? createSchedule(payload) : updateSchedule(id, payload);
+        const newId = state.stations.length > 0 ? Math.max(...state.stations.map((s) => s.id)) + 1 : 1;
+        state.stations.push({ id: newId, ...data });
     }
 
-    renderAll();
-    closeCrudModal();
+    state.infoWindow.close();
+    if (state.tempMarker) {
+        state.mapStation.remove(state.tempMarker);
+        state.tempMarker = null;
+    }
+    renderStationMarkers(state.mapStation, true);
+    renderStationList();
+    alert('保存成功！数据已更新至内存。');
+};
+
+window.deleteStation = function deleteStation(id) {
+    if (!confirm('确定要删除此站点吗？')) return;
+    state.stations = state.stations.filter((s) => s.id !== id);
+    state.infoWindow.close();
+    renderStationMarkers(state.mapStation, true);
+    renderStationList();
+};
+
+/* ==========================================
+ * 模块 2: 管理员 - 调度结果地图
+ * ========================================== */
+function initAdminRouteMap() {
+    if (!checkAMap()) return;
+    if (state.mapRoute) {
+        state.mapRoute.resize();
+        return;
+    }
+
+    state.mapRoute = new AMap.Map('route-map-container', {
+        zoom: 13,
+        center: [108.938837, 34.136631],
+        viewMode: '2D'
+    });
+
+    renderStationMarkers(state.mapRoute, false);
+    drawRoutesOnMap(state.mapRoute);
+    renderRouteDetails();
 }
 
-function handleAdminTabs() {
-    const navItems = document.querySelectorAll("[data-admin-tab]");
-    const tabs = document.querySelectorAll(".admin-tab");
-
-    navItems.forEach((item) => {
-        item.addEventListener("click", () => {
-            navItems.forEach((nav) => nav.classList.remove("nav-item-active"));
-            tabs.forEach((tab) => tab.classList.remove("admin-tab-active"));
-            item.classList.add("nav-item-active");
-            document.getElementById(`admin-${item.dataset.adminTab}`).classList.add("admin-tab-active");
+function drawRoutesOnMap(mapInstance) {
+    state.routes.forEach((route) => {
+        const pathCoords = route.path.map((id) => {
+            const st = getStationById(id);
+            return [st.lng, st.lat];
         });
-    });
-}
 
-function handleModalActions() {
-    document.querySelectorAll("[data-action='open-modal']").forEach((button) => {
-        button.addEventListener("click", openInfoModal);
-    });
-
-    document.querySelectorAll("[data-action='close-modal']").forEach((button) => {
-        button.addEventListener("click", closeInfoModal);
-    });
-
-    elements.modalBackdrop.addEventListener("click", (event) => {
-        if (event.target === elements.modalBackdrop) {
-            closeInfoModal();
-        }
-    });
-
-    elements.crudModalBackdrop.addEventListener("click", (event) => {
-        if (event.target === elements.crudModalBackdrop) {
-            closeCrudModal();
-        }
-    });
-
-    document.addEventListener("click", (event) => {
-        const createType = event.target.dataset.crudCreate;
-        const editType = event.target.dataset.crudEdit;
-        const deleteType = event.target.dataset.crudDelete;
-        const recordId = event.target.dataset.id;
-
-        if (createType) {
-            openCrudModal(createType, "create");
-        } else if (editType) {
-            openCrudModal(editType, "edit", recordId);
-        } else if (deleteType) {
-            deleteItem(deleteType, recordId);
-        } else if (event.target.dataset.action === "close-crud-modal") {
-            closeCrudModal();
-        }
-    });
-}
-
-function handleLogin() {
-    elements.loginForm.addEventListener("submit", (event) => {
-        event.preventDefault();
-        const formData = new FormData(elements.loginForm);
-        const username = String(formData.get("username") || "").trim();
-        const role = String(formData.get("role") || "user");
-
-        if (!username) return;
-        if (role === "admin" || username === "admin") {
-            switchView("admin");
-            return;
-        }
-        switchView("user");
-    });
-}
-
-function handleLogout() {
-    document.querySelectorAll("[data-action='logout']").forEach((button) => {
-        button.addEventListener("click", () => {
-            elements.loginForm.reset();
-            closeInfoModal();
-            closeCrudModal();
-            switchView("login");
+        const polyline = new AMap.Polyline({
+            path: pathCoords,
+            isOutline: true,
+            outlineColor: '#ffeeff',
+            borderWeight: 2,
+            strokeColor: route.color,
+            strokeOpacity: 0.8,
+            strokeWeight: 5,
+            strokeStyle: 'solid',
+            lineJoin: 'round',
+            lineCap: 'round',
+            showDir: true
         });
+        polyline.setMap(mapInstance);
     });
+
+    if (mapInstance && state.markers.length > 0) {
+        mapInstance.setFitView();
+    }
 }
 
-function handleSearch() {
-    elements.vehicleSearch.addEventListener("input", (event) => {
-        state.filters.vehicles = event.target.value.trim();
-        renderVehicles();
-    });
+function renderRouteDetails() {
+    const container = document.getElementById('route-details-container');
+    let html = '';
 
-    elements.stationSearch.addEventListener("input", (event) => {
-        state.filters.stations = event.target.value.trim();
-        renderStations();
-    });
+    state.routes.forEach((route) => {
+        html += `
+        <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-2 flex justify-between items-center text-white" style="background-color: ${route.color}">
+                <span class="font-bold"><i class="fa-solid fa-car-side mr-2"></i>${route.name}</span>
+                <span class="text-xs bg-white bg-opacity-20 px-2 py-1 rounded">可行</span>
+            </div>
+            <div class="p-3 bg-white">
+                <div class="relative border-l-2 ml-3 border-gray-200 space-y-4">
+        `;
 
-    elements.scheduleSearch.addEventListener("input", (event) => {
-        state.filters.schedule = event.target.value.trim();
-        renderSchedule();
+        route.schedule.forEach((point, index) => {
+            const st = getStationById(point.stationId);
+            const isDepot = st.is_depot;
+            const isFeasible = point.arr !== '-' && point.arr <= st.tw_end && point.arr >= st.tw_start;
+            const statusDot = isDepot ? 'bg-gray-400' : (isFeasible ? 'bg-green-500' : 'bg-red-500');
+
+            html += `
+                <div class="relative pl-6">
+                    <div class="absolute w-3 h-3 rounded-full ${statusDot} -left-[7px] top-1.5 border-2 border-white shadow-sm"></div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-gray-800 text-sm">${index + 1}. ${st.name}</p>
+                            <p class="text-xs text-gray-500">到达: ${point.arr} | 离开: ${point.dep}</p>
+                        </div>
+                        ${!isDepot ? `<div class="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">上 ${st.demand}人</div>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        </div>
+        `;
     });
+    container.innerHTML = html;
 }
 
-function handleCrudForm() {
-    elements.crudForm.addEventListener("submit", handleCrudSubmit);
+/* ==========================================
+ * 模块 3: 普通用户 - 个人行程视图
+ * ========================================== */
+function initUserMap() {
+    if (!checkAMap()) return;
+    if (state.mapUser) {
+        state.mapUser.resize();
+        return;
+    }
+
+    state.mapUser = new AMap.Map('user-map-container', {
+        zoom: 13,
+        center: [108.938837, 34.136631],
+        viewMode: '2D'
+    });
+
+    const userRoute = state.routes[0];
+
+    userRoute.path.forEach((id) => {
+        const st = getStationById(id);
+        const isTarget = st.id === 2;
+
+        const marker = new AMap.Marker({
+            position: [st.lng, st.lat],
+            content: `<div style="background-color: ${isTarget ? '#EF4444' : '#3B82F6'}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>`,
+            offset: new AMap.Pixel(-8, -8)
+        });
+
+        marker.setLabel({
+            direction: 'right',
+            offset: new AMap.Pixel(10, 0),
+            content: `<div class='bg-white px-2 py-1 rounded shadow text-xs'>${st.name}</div>`
+        });
+
+        marker.setMap(state.mapUser);
+    });
+
+    const pathCoords = userRoute.path.map((id) => [getStationById(id).lng, getStationById(id).lat]);
+    const polyline = new AMap.Polyline({
+        path: pathCoords,
+        isOutline: true,
+        outlineColor: '#fff',
+        borderWeight: 2,
+        strokeColor: '#3B82F6',
+        strokeOpacity: 0.9,
+        strokeWeight: 6,
+        strokeStyle: 'solid',
+        showDir: true
+    });
+    polyline.setMap(state.mapUser);
+
+    state.mapUser.setFitView();
 }
 
-renderAll();
-handleAdminTabs();
-handleModalActions();
-handleLogin();
-handleLogout();
-handleSearch();
-handleCrudForm();
+function renderUserRouteList() {
+    const container = document.getElementById('user-route-stops');
+    const userRoute = state.routes[0];
+    let html = '';
+
+    userRoute.schedule.forEach((point) => {
+        const st = getStationById(point.stationId);
+        const isUserStop = st.id === 2;
+        const isEndStop = st.id === 1 && point.type === 'depot_end';
+
+        let textClass = 'text-gray-500';
+        let dotClass = 'bg-gray-300';
+        if (isUserStop || isEndStop) {
+            textClass = 'text-gray-900 font-bold';
+            dotClass = isUserStop ? 'bg-red-500' : 'bg-blue-600';
+        }
+
+        html += `
+            <div class="relative pb-4">
+                <div class="absolute w-3 h-3 rounded-full ${dotClass} -left-[23px] top-1 border-2 border-white"></div>
+                <div class="flex justify-between items-center">
+                    <span class="${textClass}">${st.name}</span>
+                    <span class="text-sm font-mono ${textClass}">${point.arr !== '-' ? point.arr : point.dep}</span>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}

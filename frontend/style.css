@@ -1,564 +1,70 @@
-:root {
-    --bg: #f5f6f8;
-    --surface: #ffffff;
-    --surface-muted: #f8fafc;
-    --text: #111827;
-    --text-soft: #6b7280;
-    --border: #e5e7eb;
-    --primary: #2563eb;
-    --success: #16a34a;
-    --danger: #dc2626;
-    --radius-lg: 18px;
-    --radius-md: 14px;
-    --radius-sm: 10px;
-    --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-    --container: 1400px;
-}
-
-*,
-*::before,
-*::after {
-    box-sizing: border-box;
-}
-
-html,
+/* 基础样式重置与全局字体 */
 body {
+    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    background-color: #f3f4f6;
     margin: 0;
-    min-height: 100%;
-    font-family: "Noto Sans SC", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-}
-
-button,
-input,
-select {
-    font: inherit;
-}
-
-.app-shell {
-    min-height: 100vh;
-}
-
-.view {
-    display: none;
-}
-
-.view-active {
-    display: block;
-}
-
-.surface {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-}
-
-.login-layout {
-    min-height: 100vh;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 24px;
-    display: grid;
-    grid-template-columns: 1.1fr 420px;
-    gap: 24px;
-    align-items: center;
-}
-
-.hero-panel,
-.login-panel,
-.sidebar,
-.topbar,
-.stat-card,
-.content-card,
-.table-card,
-.modal {
-    border-radius: var(--radius-lg);
-}
-
-.hero-panel,
-.login-panel,
-.content-card,
-.table-card,
-.stat-card,
-.topbar,
-.modal {
-    padding: 24px;
-}
-
-.hero-panel h1,
-.topbar h1 {
-    margin: 0 0 12px;
-    font-size: 2rem;
-}
-
-.hero-copy,
-.page-subtitle,
-.body-copy,
-.quick-tip,
-.summary-list,
-.timeline,
-.detail-panel,
-.brand-block p {
-    color: var(--text-soft);
-    line-height: 1.7;
-}
-
-.hero-metrics,
-.grid-cards,
-.content-grid,
-.role-cards {
-    display: grid;
-    gap: 16px;
-}
-
-.hero-metrics {
-    grid-template-columns: repeat(3, 1fr);
-    margin-top: 24px;
-}
-
-.metric-card,
-.mini-card,
-.timeline li {
-    padding: 18px;
-    background: var(--surface-muted);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-}
-
-.metric-value {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-
-.metric-label,
-.stat-label {
-    color: var(--text-soft);
-}
-
-.badge {
-    display: inline-flex;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: #eef4ff;
-    color: var(--primary);
-    font-size: 0.75rem;
-    font-weight: 700;
-}
-
-.panel-header h2,
-.card-heading h3 {
-    margin: 10px 0 6px;
-}
-
-.login-form,
-.crud-form {
-    display: grid;
-    gap: 16px;
-}
-
-.field,
-.role-picker {
-    display: grid;
-    gap: 8px;
-}
-
-.field span,
-.role-picker span {
-    font-weight: 600;
-}
-
-.field input,
-.crud-form input,
-.crud-form select,
-.search-input {
-    width: 100%;
-    height: 46px;
-    padding: 0 14px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: #fff;
-    color: var(--text);
-}
-
-.segmented-control {
-    display: inline-grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-}
-
-.segment input {
-    display: none;
-}
-
-.segment span {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 44px;
-    padding: 0 14px;
-    border-radius: var(--radius-sm);
-    background: var(--surface-muted);
-    border: 1px solid var(--border);
-    color: var(--text-soft);
-    cursor: pointer;
-}
-
-.segment input:checked + span {
-    background: var(--primary);
-    color: #fff;
-    border-color: var(--primary);
-}
-
-.primary-button,
-.secondary-button,
-.ghost-button,
-.icon-button,
-.nav-item,
-.table-action {
-    border: 1px solid var(--border);
-    cursor: pointer;
-}
-
-.primary-button {
-    height: 48px;
-    border-radius: var(--radius-sm);
-    background: var(--primary);
-    color: #fff;
-    font-weight: 700;
-}
-
-.secondary-button,
-.ghost-button,
-.icon-button,
-.table-action {
-    height: 40px;
-    padding: 0 14px;
-    border-radius: var(--radius-sm);
-    background: #fff;
-    color: var(--text);
-}
-
-.icon-button {
-    width: 40px;
     padding: 0;
+    overflow: hidden; /* 整体防滚动，内部局部滚动 */
 }
 
-.quick-tip {
-    margin-top: 18px;
-    padding: 14px;
-    background: var(--surface-muted);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+/* 隐藏元素的工具类 */
+.hidden-view {
+    display: none !important;
 }
 
-.dashboard-view {
-    padding: 18px;
-}
-
-.dashboard-shell {
-    max-width: var(--container);
-    margin: 0 auto;
-    min-height: calc(100vh - 36px);
-    display: grid;
-    grid-template-columns: 260px minmax(0, 1fr);
-    gap: 18px;
-}
-
-.sidebar {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 18px;
-}
-
-.brand-block h2 {
-    margin: 0 0 8px;
-    font-size: 1.4rem;
-}
-
-.nav-list {
-    display: grid;
-    gap: 8px;
-}
-
-.nav-item {
-    height: 44px;
-    padding: 0 14px;
-    border-radius: var(--radius-sm);
-    background: #fff;
-    text-align: left;
-    color: var(--text-soft);
-}
-
-.nav-item-active {
-    background: #eef4ff;
-    color: var(--primary);
-    border-color: #cfe0ff;
-}
-
-.route-preview,
-.detail-panel {
+/* 高德地图 InfoWindow 自定义样式 */
+.custom-info-window {
+    background: white;
     padding: 16px;
-    border-radius: var(--radius-md);
-    background: var(--surface-muted);
-    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    width: 300px;
 }
 
-.route-title {
-    margin: 0 0 8px;
-    font-size: 0.8rem;
-    color: var(--text-soft);
+.amap-info-content {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
 }
 
-.dashboard-main {
-    display: grid;
-    gap: 16px;
-    min-width: 0;
+.amap-info-close {
+    right: 12px !important;
+    top: 12px !important;
+    color: #6b7280;
 }
 
-.topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 14px;
+/* 表单输入框小尺寸调整 */
+.form-input-sm {
+    width: 100%;
+    padding: 4px 8px;
+    font-size: 0.875rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    margin-top: 2px;
+    margin-bottom: 8px;
 }
 
-.page-subtitle {
-    margin: 0;
+/* 侧边栏菜单激活状态 */
+.nav-item.active {
+    background-color: #1e3a8a;
+    border-left: 4px solid #60a5fa;
 }
 
-.status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    border-radius: 999px;
-    background: #eefbf3;
-    border: 1px solid #d5f1df;
-    color: var(--success);
-    font-weight: 600;
-}
-
-.status-dot {
+/* 滚动条美化 */
+::-webkit-scrollbar {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
-    background: currentColor;
 }
 
-.grid-cards {
-    grid-template-columns: repeat(4, 1fr);
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
 }
 
-.stat-card strong {
-    display: block;
-    margin: 10px 0 6px;
-    font-size: 1.7rem;
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
 }
 
-.content-grid {
-    grid-template-columns: 1.1fr 0.9fr;
-}
-
-.user-grid {
-    grid-template-columns: 1fr 0.9fr;
-}
-
-.card-heading {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-}
-
-.toolbar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.search-input {
-    min-width: 220px;
-}
-
-.summary-list,
-.timeline {
-    margin: 0;
-    padding-left: 18px;
-}
-
-.role-cards {
-    grid-template-columns: repeat(2, 1fr);
-}
-
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.data-table th,
-.data-table td {
-    padding: 12px 10px;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-    vertical-align: middle;
-}
-
-.data-table th {
-    color: var(--text-soft);
-    font-size: 0.9rem;
-}
-
-.table-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.table-action {
-    min-height: 34px;
-    padding: 0 10px;
-}
-
-.table-action.delete {
-    color: var(--danger);
-}
-
-.timeline {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    gap: 12px;
-}
-
-.timeline strong {
-    color: var(--text);
-}
-
-.modal-backdrop {
-    position: fixed;
-    inset: 0;
-    display: none;
-    place-items: center;
-    background: rgba(17, 24, 39, 0.28);
-    z-index: 20;
-}
-
-.modal-backdrop.modal-open {
-    display: grid;
-}
-
-.modal {
-    width: min(520px, calc(100vw - 24px));
-}
-
-.form-modal {
-    width: min(560px, calc(100vw - 24px));
-}
-
-.modal-header,
-.modal-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-}
-
-.modal-content {
-    margin: 18px 0 20px;
-}
-
-.crud-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
-}
-
-.modal-note {
-    margin: 0;
-    color: var(--text-soft);
-    font-size: 0.92rem;
-}
-
-.admin-tab {
-    display: none;
-}
-
-.admin-tab-active {
-    display: block;
-}
-
-@media (max-width: 1100px) {
-    .login-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .grid-cards {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .content-grid,
-    .user-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 860px) {
-    .dashboard-shell {
-        grid-template-columns: 1fr;
-    }
-
-    .topbar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .nav-list {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 640px) {
-    .login-layout,
-    .dashboard-view {
-        padding: 12px;
-    }
-
-    .hero-panel,
-    .login-panel,
-    .sidebar,
-    .topbar,
-    .stat-card,
-    .content-card,
-    .table-card,
-    .modal {
-        padding: 18px;
-    }
-
-    .grid-cards,
-    .role-cards,
-    .nav-list,
-    .crud-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .toolbar {
-        width: 100%;
-    }
-
-    .toolbar .search-input,
-    .toolbar .secondary-button {
-        width: 100%;
-    }
-
-    .data-table {
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
-    }
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
