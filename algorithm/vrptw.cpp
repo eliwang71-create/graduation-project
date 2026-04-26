@@ -440,7 +440,7 @@ void depositPheromone(
 
 AcoVrptwSolver::AcoVrptwSolver(ACOConfig config) : config_(config) {}
 
-ACOResult AcoVrptwSolver::solve(const VRPTWInstance& instance) const {
+ACOResult AcoVrptwSolver::solve(const VRPTWInstance& instance, bool collect_iteration_history) const {
     ACOResult result;
     if (instance.stations.empty() || instance.vehicles.empty()) {
         return result;
@@ -457,9 +457,13 @@ ACOResult AcoVrptwSolver::solve(const VRPTWInstance& instance) const {
     // then pheromone is evaporated and reinforced using the best solutions found.
     for (int iteration = 0; iteration < config_.max_iterations; ++iteration) {
         AntSolution iteration_best;
+        int feasible_ant_count = 0;
 
         for (int ant = 0; ant < config_.ant_count; ++ant) {
             AntSolution ant_solution = constructAntSolution(instance, pheromone, config_, generator);
+            if (ant_solution.feasible) {
+                ++feasible_ant_count;
+            }
             if (isBetterSolution(ant_solution, iteration_best)) {
                 iteration_best = ant_solution;
             }
@@ -471,6 +475,23 @@ ACOResult AcoVrptwSolver::solve(const VRPTWInstance& instance) const {
         evaporatePheromone(pheromone, config_.evaporation_rate);
         depositPheromone(instance, iteration_best, config_, pheromone);
         depositPheromone(instance, global_best, config_, pheromone);
+
+        if (collect_iteration_history) {
+            ACOIterationSummary summary;
+            summary.iteration = iteration + 1;
+            summary.feasible_ant_count = feasible_ant_count;
+            summary.feasible = global_best.feasible;
+            if (iteration_best.feasible) {
+                summary.iteration_best_objective = iteration_best.objective_distance;
+            }
+            if (global_best.feasible) {
+                summary.best_objective = global_best.objective_distance;
+                summary.global_best_objective = global_best.objective_distance;
+                summary.total_runtime_minutes = global_best.total_runtime_minutes;
+                summary.best_routes = global_best.routes;
+            }
+            result.iteration_history.push_back(summary);
+        }
     }
 
     if (!global_best.feasible) {

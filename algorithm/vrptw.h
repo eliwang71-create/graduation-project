@@ -2,6 +2,7 @@
 #define ALGORITHM_VRPTW_H
 
 #include <string>
+#include <optional>
 #include <vector>
 
 struct TimeWindow {
@@ -57,18 +58,30 @@ struct ACOConfig {
     double pheromone_constant = 100.0;
 };
 
+struct ACOIterationSummary {
+    int iteration = 0;
+    double best_objective = 0.0;
+    std::optional<double> iteration_best_objective;
+    std::optional<double> global_best_objective;
+    int feasible_ant_count = 0;
+    int total_runtime_minutes = 0;
+    bool feasible = false;
+    std::vector<RoutePlan> best_routes;
+};
+
 struct ACOResult {
     std::vector<RoutePlan> routes;
     double objective_value = 0.0;
     int total_runtime_minutes = 0;
     bool feasible = false;
+    std::vector<ACOIterationSummary> iteration_history;
 };
 
 class AcoVrptwSolver {
 public:
     explicit AcoVrptwSolver(ACOConfig config = {});
 
-    ACOResult solve(const VRPTWInstance& instance) const;
+    ACOResult solve(const VRPTWInstance& instance, bool collect_iteration_history = false) const;
     bool isRouteFeasible(const VRPTWInstance& instance, const RoutePlan& route) const;
 
 private:

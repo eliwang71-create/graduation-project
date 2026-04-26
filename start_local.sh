@@ -11,6 +11,7 @@ c++ -std=c++17 \
   backend/schedule_repository.cpp \
   backend/vehicle_repository.cpp \
   backend/planning_service.cpp \
+  backend/simulation_service.cpp \
   backend/mysql_reader.cpp \
   backend/result_writer.cpp \
   backend/distance_matrix_repository.cpp \

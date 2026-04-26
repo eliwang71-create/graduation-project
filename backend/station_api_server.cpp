@@ -23,6 +23,7 @@
 #include "station_repository.h"
 #include "vehicle_repository.h"
 #include "planning_service.h"
+#include "simulation_service.h"
 
 namespace {
 
@@ -195,6 +196,141 @@ std::string planningSummaryToJson(const PlanningSummary& summary) {
     return json.str();
 }
 
+std::string routePlanToJson(const RoutePlan& route) {
+    std::ostringstream json;
+    json << "{"
+         << "\"vehicle_id\":" << route.vehicle_id << ","
+         << "\"station_ids\":[";
+    for (std::size_t i = 0; i < route.station_ids.size(); ++i) {
+        if (i > 0) {
+            json << ",";
+        }
+        json << route.station_ids[i];
+    }
+    json << "],"
+         << "\"arrival_times_minutes\":[";
+    for (std::size_t i = 0; i < route.arrival_times_minutes.size(); ++i) {
+        if (i > 0) {
+            json << ",";
+        }
+        json << route.arrival_times_minutes[i];
+    }
+    json << "],"
+         << "\"total_travel_minutes\":" << route.total_travel_minutes << ","
+         << "\"total_service_minutes\":" << route.total_service_minutes << ","
+         << "\"total_runtime_minutes\":" << route.total_runtime_minutes << ","
+         << "\"total_load\":" << route.total_load << ","
+         << "\"total_distance_km\":" << route.total_distance_km << ","
+         << "\"feasible\":" << (route.feasible ? "true" : "false")
+         << "}";
+    return json.str();
+}
+
+std::string simulationResultToJson(const SimulationPlanResult& result) {
+    std::ostringstream json;
+    json << "{"
+         << "\"success\":true,"
+         << "\"final_feasible\":" << (result.result.feasible ? "true" : "false") << ","
+         << "\"final_runtime_metrics\":{"
+         << "\"objective_value\":" << result.result.objective_value << ","
+         << "\"total_runtime_minutes\":" << result.result.total_runtime_minutes
+         << "},"
+         << "\"iterations\":[";
+
+    for (std::size_t i = 0; i < result.result.iteration_history.size(); ++i) {
+        const auto& iteration = result.result.iteration_history[i];
+        if (i > 0) {
+            json << ",";
+        }
+        json << "{"
+             << "\"iteration\":" << iteration.iteration << ","
+             << "\"best_objective\":" << iteration.best_objective << ","
+             << "\"iteration_best_objective\":";
+        if (iteration.iteration_best_objective.has_value()) {
+            json << *iteration.iteration_best_objective;
+        } else {
+            json << "null";
+        }
+        json << ","
+             << "\"global_best_objective\":";
+        if (iteration.global_best_objective.has_value()) {
+            json << *iteration.global_best_objective;
+        } else {
+            json << "null";
+        }
+        json << ","
+             << "\"feasible_ant_count\":" << iteration.feasible_ant_count << ","
+             << "\"total_runtime_minutes\":" << iteration.total_runtime_minutes << ","
+             << "\"feasible\":" << (iteration.feasible ? "true" : "false") << ","
+             << "\"best_routes\":[";
+        for (std::size_t j = 0; j < iteration.best_routes.size(); ++j) {
+            if (j > 0) {
+                json << ",";
+            }
+            json << routePlanToJson(iteration.best_routes[j]);
+        }
+        json << "]}";
+    }
+
+    json << "],"
+         << "\"final_routes\":[";
+    for (std::size_t i = 0; i < result.result.routes.size(); ++i) {
+        if (i > 0) {
+            json << ",";
+        }
+        json << routePlanToJson(result.result.routes[i]);
+    }
+    json << "]}";
+    return json.str();
+}
+
+std::string extractJsonArrayContent(const std::string& body, const std::string& key) {
+    const std::string token = "\"" + key + "\"";
+    const std::size_t key_pos = body.find(token);
+    if (key_pos == std::string::npos) {
+        return "";
+    }
+    const std::size_t array_start = body.find('[', key_pos);
+    if (array_start == std::string::npos) {
+        return "";
+    }
+
+    int depth = 0;
+    for (std::size_t i = array_start; i < body.size(); ++i) {
+        if (body[i] == '[') {
+            ++depth;
+        } else if (body[i] == ']') {
+            --depth;
+            if (depth == 0) {
+                return body.substr(array_start + 1, i - array_start - 1);
+            }
+        }
+    }
+    return "";
+}
+
+std::vector<std::string> splitTopLevelObjects(const std::string& content) {
+    std::vector<std::string> objects;
+    int depth = 0;
+    std::size_t object_start = std::string::npos;
+
+    for (std::size_t i = 0; i < content.size(); ++i) {
+        if (content[i] == '{') {
+            if (depth == 0) {
+                object_start = i;
+            }
+            ++depth;
+        } else if (content[i] == '}') {
+            --depth;
+            if (depth == 0 && object_start != std::string::npos) {
+                objects.push_back(content.substr(object_start, i - object_start + 1));
+                object_start = std::string::npos;
+            }
+        }
+    }
+    return objects;
+}
+
 std::string extractJsonString(const std::string& body, const std::string& key, const std::string& fallback = "") {
     const std::regex pattern("\"" + key + "\"\\s*:\\s*\"([^\"]*)\"");
     std::smatch match;
@@ -257,6 +393,61 @@ ApiVehicle parseVehiclePayload(const std::string& body) {
     vehicle.max_run_minutes = extractJsonInt(body, "max_run_minutes", 120);
     vehicle.earliest_departure_time = extractJsonString(body, "earliest_departure_time", "06:40");
     return vehicle;
+}
+
+SimulationStationInput parseSimulationStationPayload(const std::string& body) {
+    SimulationStationInput station;
+    station.id = extractJsonInt(body, "id");
+    station.name = extractJsonString(body, "name");
+    station.lng = extractJsonDouble(body, "lng");
+    station.lat = extractJsonDouble(body, "lat");
+    station.demand = extractJsonInt(body, "demand");
+    station.service_minutes = extractJsonInt(body, "service_minutes", 2);
+    station.time_window_start = extractJsonString(body, "time_window_start", "07:00");
+    station.time_window_end = extractJsonString(body, "time_window_end", "08:00");
+    station.is_depot = extractJsonBool(body, "is_depot", false);
+    return station;
+}
+
+SimulationVehicleInput parseSimulationVehiclePayload(const std::string& body) {
+    SimulationVehicleInput vehicle;
+    vehicle.id = extractJsonInt(body, "id");
+    vehicle.code = extractJsonString(body, "code");
+    vehicle.capacity = extractJsonInt(body, "capacity", 20);
+    vehicle.max_run_minutes = extractJsonInt(body, "max_run_minutes", 120);
+    vehicle.earliest_departure_time = extractJsonString(body, "earliest_departure_time", "06:40");
+    return vehicle;
+}
+
+std::vector<SimulationStationInput> parseSimulationStations(const std::string& body) {
+    const auto objects = splitTopLevelObjects(extractJsonArrayContent(body, "stations"));
+    std::vector<SimulationStationInput> stations;
+    for (const auto& object : objects) {
+        stations.push_back(parseSimulationStationPayload(object));
+    }
+    return stations;
+}
+
+std::vector<SimulationVehicleInput> parseSimulationVehicles(const std::string& body) {
+    const auto objects = splitTopLevelObjects(extractJsonArrayContent(body, "vehicles"));
+    std::vector<SimulationVehicleInput> vehicles;
+    for (const auto& object : objects) {
+        vehicles.push_back(parseSimulationVehiclePayload(object));
+    }
+    return vehicles;
+}
+
+ACOConfig parseSimulationAcoConfig(const std::string& body) {
+    ACOConfig config;
+    const std::regex pattern("\"aco_config\"\\s*:\\s*\\{([\\s\\S]*?)\\}");
+    std::smatch match;
+    if (!std::regex_search(body, match, pattern)) {
+        return config;
+    }
+    const std::string config_body = match[1].str();
+    config.ant_count = extractJsonInt(config_body, "ant_count", config.ant_count);
+    config.max_iterations = extractJsonInt(config_body, "max_iterations", config.max_iterations);
+    return config;
 }
 
 std::string buildHttpResponse(
@@ -501,6 +692,15 @@ std::string handleRequest(
         return buildHttpResponse(200, "OK", planningSummaryToJson(summary));
     }
 
+    if (request.method == "POST" && request.path == "/api/simulation-plan") {
+        SimulationService simulation_service;
+        const auto stations = parseSimulationStations(request.body);
+        const auto vehicles = parseSimulationVehicles(request.body);
+        const ACOConfig config = parseSimulationAcoConfig(request.body);
+        const SimulationPlanResult result = simulation_service.runSimulation(stations, vehicles, config);
+        return buildHttpResponse(200, "OK", simulationResultToJson(result));
+    }
+
     const int station_id = parseStationIdFromPath(request.path);
     if (station_id > 0 && request.method == "PUT") {
         const ApiStation updated = station_repository.updateStation(station_id, parseStationPayload(request.body));
@@ -594,7 +794,7 @@ int main() {
         }
 
         std::cout << "Station API server running on http://127.0.0.1:" << api_port << std::endl;
-        std::cout << "Available endpoints: GET/POST /api/stations, PUT/DELETE /api/stations/{id}, GET/POST /api/vehicles, PUT/DELETE /api/vehicles/{id}, POST /api/plan, GET /api/schedule-results, GET /api/route-polylines" << std::endl;
+        std::cout << "Available endpoints: GET/POST /api/stations, PUT/DELETE /api/stations/{id}, GET/POST /api/vehicles, PUT/DELETE /api/vehicles/{id}, POST /api/plan, POST /api/simulation-plan, GET /api/schedule-results, GET /api/route-polylines" << std::endl;
 
         while (true) {
             sockaddr_in client_address {};
